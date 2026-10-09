@@ -1,20 +1,33 @@
 #!/usr/bin/env bash
-# Usage: scripts/send_uber_webhook.sh [webhook-file]
-# Signs the file with the Uber client secret from .env and posts it as raw bytes.
+# Usage: scripts/send_uber_webhook.sh [resource_id]
+# With no argument, sends fixtures/uber_webhook.json exactly as it is. With an
+# id, signs and sends a temporary copy that carries that id.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+load_env
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-set -a
-source "$ROOT/.env"
-set +a
+OFFICIAL_WEBHOOK="$ROOT/fixtures/uber_webhook.json"
 
-WEBHOOK_FILE="${1:-$ROOT/fixtures/uber_webhook.json}"
-WEBHOOK_URL="${WEBHOOK_URL:-http://localhost:8000/api/webhooks/orders}"
+if [[ $# -eq 0 ]]; then
+  send_uber_file "$OFFICIAL_WEBHOOK"
+  exit
+fi
 
-SIGNATURE="$(openssl dgst -sha256 -hmac "$UBER_CLIENT_SECRET" "$WEBHOOK_FILE" | awk '{print $NF}')"
+RESOURCE_ID="$1"
+if [[ ! "$RESOURCE_ID" =~ $RESOURCE_ID_PATTERN ]]; then
+  echo "resource_id may only contain letters, digits, - and _." >&2
+  exit 1
+fi
 
-curl --silent --show-error --output /dev/null --write-out "Uber webhook: HTTP %{http_code}\n" \
-  --request POST "$WEBHOOK_URL" \
-  --header "Content-Type: application/json" \
-  --header "X-Uber-Signature: $SIGNATURE" \
-  --data-binary @"$WEBHOOK_FILE"
+make_temp_file
+python3 - "$OFFICIAL_WEBHOOK" "$RESOURCE_ID" > "$TEMP_FILE" <<'PY'
+import json
+import sys
+
+path, resource_id = sys.argv[1:3]
+payload = json.load(open(path))
+payload["meta"]["resource_id"] = resource_id
+payload["resource_href"] = payload["resource_href"].rsplit("/", 1)[0] + "/" + resource_id
+print(json.dumps(payload, indent=2))
+PY
+send_uber_file "$TEMP_FILE"

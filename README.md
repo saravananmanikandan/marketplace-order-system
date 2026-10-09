@@ -86,21 +86,23 @@ curl -i -X POST http://localhost:8000/api/webhooks/orders \
   --data-binary @fixtures/doordash_order.json
 ```
 
-### More demo orders
+### More orders
 
-The scripts accept another file as their first argument:
-
-```
-scripts/send_doordash_webhook.sh fixtures/demo/doordash_order_2.json
-scripts/send_doordash_webhook.sh fixtures/demo/doordash_order_3.json
-```
-
-The Uber demo order has its own Get Order file in `fixtures/demo/uber_orders/`, so it needs no
-extra setup:
+Load the demo set (5 orders in total) in one go:
 
 ```
-scripts/send_uber_webhook.sh fixtures/demo/uber_webhook.json
+scripts/seed_demo.sh
 ```
+
+Send one more order by giving the script a new id. Uber ids may use letters, digits, `-`
+and `_`:
+
+```
+scripts/send_uber_webhook.sh my-uber-order-1
+scripts/send_doordash_webhook.sh my-doordash-order-1
+```
+
+If the backend is not running, the scripts say so and exit with an error.
 
 ## Read the API
 
