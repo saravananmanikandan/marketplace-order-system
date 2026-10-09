@@ -3,7 +3,9 @@ import { fetchOrders } from "../api.js";
 import OrderFilters from "../components/OrderFilters.jsx";
 import OrderTable from "../components/OrderTable.jsx";
 import Pagination from "../components/Pagination.jsx";
-import { ORDERS_QUERY_KEY } from "../constants.js";
+import RefreshNote from "../components/RefreshNote.jsx";
+import { ORDERS_QUERY_KEY, REFRESH_INTERVAL_MS } from "../constants.js";
+import { formatClock } from "../format.js";
 import { useOrderListParams } from "../hooks/useOrderListParams.js";
 
 function Message({ role, children }) {
@@ -17,20 +19,28 @@ function Message({ role, children }) {
 export default function OrderListPage() {
   const { params, updateParams, clearParams } = useOrderListParams();
 
-  const { data, isPending, isError, error, refetch, isPlaceholderData } = useQuery({
-    queryKey: [ORDERS_QUERY_KEY, "list", params],
-    queryFn: () => fetchOrders(params),
-    placeholderData: keepPreviousData,
-  });
+  const { data, isPending, isError, isRefetchError, error, refetch, isPlaceholderData, dataUpdatedAt } =
+    useQuery({
+      queryKey: [ORDERS_QUERY_KEY, "list", params],
+      queryFn: () => fetchOrders(params),
+      placeholderData: keepPreviousData,
+      refetchInterval: REFRESH_INTERVAL_MS,
+    });
 
   return (
     <section aria-labelledby="orders-heading">
-      <h1 id="orders-heading">Orders</h1>
+      <div className="list-header">
+        <h1 id="orders-heading">Orders</h1>
+        <div className="list-status">
+          {dataUpdatedAt > 0 && <span className="muted">Updated {formatClock(dataUpdatedAt)}</span>}
+          {isRefetchError && <RefreshNote />}
+        </div>
+      </div>
       <OrderFilters params={params} onChange={updateParams} onClear={clearParams} />
 
       {isPending && <Message role="status">Loading orders…</Message>}
 
-      {isError && (
+      {isError && !data && (
         <Message role="alert">
           Could not load orders: {error.message}{" "}
           <button type="button" className="button" onClick={() => refetch()}>

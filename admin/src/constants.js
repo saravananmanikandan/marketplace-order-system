@@ -27,6 +27,7 @@ export const SORT_OPTIONS = [
 ];
 
 export const SEARCH_DEBOUNCE_MS = 300;
+export const REFRESH_INTERVAL_MS = 5000;
 export const FIRST_PAGE = 1;
 
 export const ORDERS_QUERY_KEY = "orders";

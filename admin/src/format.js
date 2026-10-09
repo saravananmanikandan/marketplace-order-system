@@ -16,3 +16,7 @@ export function formatTime(isoString) {
     timeStyle: "short",
   }).format(new Date(isoString));
 }
+
+export function formatClock(timestampMs) {
+  return new Intl.DateTimeFormat(undefined, { timeStyle: "medium" }).format(new Date(timestampMs));
+}

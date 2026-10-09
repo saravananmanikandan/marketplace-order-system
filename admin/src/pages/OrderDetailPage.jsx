@@ -2,9 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { advanceOrderStatus, fetchOrder } from "../api.js";
 import BackLink from "../components/BackLink.jsx";
+import RefreshNote from "../components/RefreshNote.jsx";
 import LineItemsTable from "../components/LineItemsTable.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
-import { ORDERS_QUERY_KEY, PROVIDERS, STATUSES, labelFor, nextStatus } from "../constants.js";
+import {
+  ORDERS_QUERY_KEY,
+  PROVIDERS,
+  REFRESH_INTERVAL_MS,
+  STATUSES,
+  labelFor,
+  nextStatus,
+} from "../constants.js";
 import { formatMoney, formatTime } from "../format.js";
 
 const NOT_FOUND = 404;
@@ -87,19 +95,20 @@ function OrderDetail({ order }) {
 
 export default function OrderDetailPage() {
   const { id } = useParams();
-  const { data, isPending, isError, error, refetch } = useQuery({
+  const { data, isPending, isError, isRefetchError, error, refetch } = useQuery({
     queryKey: [ORDERS_QUERY_KEY, "detail", id],
     queryFn: () => fetchOrder(id),
+    refetchInterval: REFRESH_INTERVAL_MS,
   });
 
   return (
     <section>
       <BackLink />
       {isPending && <div className="message" role="status">Loading order…</div>}
-      {isError && error.status === NOT_FOUND && (
+      {isError && !data && error.status === NOT_FOUND && (
         <div className="message" role="alert">This order does not exist.</div>
       )}
-      {isError && error.status !== NOT_FOUND && (
+      {isError && !data && error.status !== NOT_FOUND && (
         <div className="message" role="alert">
           Could not load the order: {error.message}{" "}
           <button type="button" className="button" onClick={() => refetch()}>
@@ -107,6 +116,7 @@ export default function OrderDetailPage() {
           </button>
         </div>
       )}
+      {isRefetchError && <RefreshNote />}
       {data && <OrderDetail order={data} />}
     </section>
   );

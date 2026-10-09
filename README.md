@@ -53,6 +53,8 @@ npm run dev
 
 Open http://localhost:5173. Vite forwards `/api` requests to port 8000.
 
+The admin polls the API every 5 seconds. Server-sent events or WebSockets would be the next step if volume required it.
+
 ## Send the sample webhooks
 
 With the backend running, use the scripts. They read `.env` and sign or authorize the
