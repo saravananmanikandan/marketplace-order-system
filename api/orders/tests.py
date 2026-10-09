@@ -1,10 +1,14 @@
 import hashlib
 import hmac
 import json
+import tempfile
+from pathlib import Path
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
+from rest_framework.test import APITestCase
 
 from . import constants
 from .models import Order
@@ -12,6 +16,7 @@ from .providers import registry
 from .providers.base import (
     InvalidPayloadError,
     OrderClient,
+    OrderData,
     OrderLookupError,
     Provider,
 )
@@ -73,7 +78,17 @@ class StubProvider(Provider):
         return True
 
     def build_order(self, payload):
-        raise NotImplementedError
+        return OrderData(
+            provider="stub",
+            external_order_id=str(payload["stub"]),
+            status=constants.STATUS_NEW,
+            customer_name="Stub Customer",
+            customer_phone="",
+            line_items=[],
+            total_cents=100,
+            currency="USD",
+            raw_payload=payload,
+        )
 
 
 class StubOrderClient(OrderClient):
@@ -243,3 +258,187 @@ class DoorDashProviderTests(SimpleTestCase):
         self.payload["event"]["status"] = "SOMETHING_ELSE"
         with self.assertRaises(InvalidPayloadError):
             self.provider.build_order(self.payload)
+
+
+WEBHOOK_SETTINGS = {
+    "UBER_CLIENT_SECRET": UBER_SECRET,
+    "DOORDASH_WEBHOOK_AUTH_HEADER": DOORDASH_AUTH,
+    "UBER_GET_ORDER_FIXTURE": FIXTURES_DIR / "uber_get_order.json",
+    "DEFAULT_CURRENCY": "USD",
+}
+
+
+class WebhookTestCase(APITestCase):
+    def post_raw(self, body: bytes, **headers):
+        return self.client.generic(
+            "POST",
+            reverse("webhook-orders"),
+            data=body,
+            content_type="application/json",
+            **headers,
+        )
+
+    def post_uber(self, body: bytes | None = None, signature: str | None = None):
+        body = body if body is not None else fixture_bytes("uber_webhook.json")
+        signature = signature if signature is not None else sign_uber(body)
+        return self.post_raw(body, HTTP_X_UBER_SIGNATURE=signature)
+
+    def post_doordash(self, body: bytes | None = None, authorization: str = DOORDASH_AUTH):
+        body = body if body is not None else fixture_bytes("doordash_order.json")
+        return self.post_raw(body, HTTP_AUTHORIZATION=authorization)
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class WebhookAuthTests(WebhookTestCase):
+    def assert_rejected(self, response):
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_uber_valid_signature_returns_200_with_empty_body(self):
+        response = self.post_uber()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"")
+
+    def test_uber_tampered_body_is_rejected(self):
+        body = fixture_bytes("uber_webhook.json")
+        response = self.post_uber(body.replace(b"pos", b"abc"), sign_uber(body))
+        self.assert_rejected(response)
+
+    def test_uber_wrong_secret_is_rejected(self):
+        body = fixture_bytes("uber_webhook.json")
+        self.assert_rejected(self.post_uber(body, sign_uber(body, "wrong-secret")))
+
+    def test_uber_missing_signature_header_is_rejected(self):
+        self.assert_rejected(self.post_raw(fixture_bytes("uber_webhook.json")))
+
+    def test_doordash_matching_header_returns_200(self):
+        response = self.post_doordash()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_doordash_wrong_header_is_rejected(self):
+        self.assert_rejected(self.post_doordash(authorization="Bearer wrong-token-000001"))
+
+    def test_doordash_missing_header_is_rejected(self):
+        self.assert_rejected(self.post_raw(fixture_bytes("doordash_order.json")))
+
+    def test_doordash_prefix_only_header_is_rejected(self):
+        self.assert_rejected(self.post_doordash(authorization="Bearer"))
+
+
+def find_keys(node, key: str) -> bool:
+    if isinstance(node, dict):
+        return key in node or any(find_keys(value, key) for value in node.values())
+    if isinstance(node, list):
+        return any(find_keys(value, key) for value in node)
+    return False
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class WebhookIngestTests(WebhookTestCase):
+    def test_uber_webhook_produces_one_correct_order(self):
+        self.post_uber()
+        order = Order.objects.get()
+        self.assertEqual(order.provider, constants.PROVIDER_UBER)
+        self.assertEqual(order.external_order_id, "f9f363d1-e1c2-4595-b477-c649845bc953")
+        self.assertEqual(order.status, constants.STATUS_NEW)
+        self.assertEqual(order.customer_name, "Larry")
+        self.assertEqual(order.customer_phone, "+1 555-555-5555")
+        self.assertEqual(order.total_cents, 1399)
+        self.assertEqual(order.currency, "USD")
+        self.assertEqual([item["name"] for item in order.line_items][0], "Fresh-baked muffin")
+        self.assertEqual(
+            order.raw_payload["webhook"], json.loads(fixture_bytes("uber_webhook.json"))
+        )
+        self.assertEqual(
+            order.raw_payload["order"], json.loads(fixture_bytes("uber_get_order.json"))
+        )
+
+    def test_doordash_webhook_produces_one_correct_order(self):
+        self.post_doordash()
+        order = Order.objects.get()
+        self.assertEqual(order.provider, constants.PROVIDER_DOORDASH)
+        self.assertEqual(order.external_order_id, "abc12345")
+        self.assertEqual(order.status, constants.STATUS_NEW)
+        self.assertEqual(order.customer_name, "Kelley W.")
+        self.assertEqual(order.customer_phone, "+18559731040")
+        self.assertEqual(order.total_cents, 2300)
+        self.assertEqual(order.currency, "USD")
+        self.assertEqual(order.line_items[0]["name"], "Burrito Scram-Bowl")
+        self.assertEqual(order.raw_payload, json.loads(fixture_bytes("doordash_order.json")))
+
+    def test_unknown_payload_shape_returns_400(self):
+        response = self.post_raw(b'{"hello": "world"}')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_invalid_json_returns_400(self):
+        for body in (b"{not json", b"", b"[1, 2]"):
+            with self.subTest(body=body):
+                self.assertEqual(self.post_raw(body).status_code, 400)
+
+    def test_doordash_payload_missing_required_fields_returns_400(self):
+        payload = json.loads(fixture_bytes("doordash_order.json"))
+        del payload["order"]["subtotal"]
+        response = self.post_doordash(json.dumps(payload).encode())
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_failing_order_lookup_returns_502_and_saves_nothing(self):
+        with override_settings(UBER_GET_ORDER_FIXTURE=FIXTURES_DIR / "missing.json"):
+            response = self.post_uber()
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_no_official_fixture_contains_a_provider_key(self):
+        paths = list(FIXTURES_DIR.rglob("*.json"))
+        self.assertGreaterEqual(len(paths), 7)
+        for path in paths:
+            with self.subTest(path=path.name):
+                self.assertFalse(find_keys(json.loads(path.read_bytes()), "provider"))
+
+    @override_settings(
+        WEBHOOK_PROVIDERS=[
+            "orders.providers.uber.UberProvider",
+            "orders.providers.doordash.DoorDashProvider",
+            "orders.tests.StubProvider",
+        ]
+    )
+    def test_third_provider_is_ingested_without_touching_view_or_service(self):
+        response = self.post_raw(b'{"stub": "stub-1"}')
+        self.assertEqual(response.status_code, 200)
+        order = Order.objects.get()
+        self.assertEqual((order.provider, order.external_order_id), ("stub", "stub-1"))
+
+    def test_same_webhook_twice_leaves_one_row(self):
+        self.post_uber()
+        self.post_uber()
+        self.post_doordash()
+        self.post_doordash()
+        self.assertEqual(Order.objects.count(), 2)
+
+    def test_retried_webhook_does_not_move_status_backwards(self):
+        self.post_uber()
+        Order.objects.update(status=constants.STATUS_PREPARING)
+        self.post_uber()
+        self.assertEqual(Order.objects.get().status, constants.STATUS_PREPARING)
+
+    def test_retry_keeps_the_original_created_at(self):
+        self.post_doordash()
+        first = Order.objects.get().created_at
+        self.post_doordash()
+        self.assertEqual(Order.objects.get().created_at, first)
+
+    def test_cancelled_from_provider_is_applied_and_sticks(self):
+        self.post_uber()
+        Order.objects.update(status=constants.STATUS_PREPARING)
+        order_payload = json.loads(fixture_bytes("uber_get_order.json"))
+        order_payload["current_state"] = "CANCELED"
+        with tempfile.TemporaryDirectory() as directory:
+            cancelled_path = Path(directory) / "cancelled.json"
+            cancelled_path.write_text(json.dumps(order_payload))
+            with override_settings(UBER_GET_ORDER_FIXTURE=cancelled_path):
+                self.post_uber()
+        self.assertEqual(Order.objects.get().status, constants.STATUS_CANCELLED)
+        self.post_uber()
+        self.assertEqual(Order.objects.get().status, constants.STATUS_CANCELLED)
