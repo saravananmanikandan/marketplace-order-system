@@ -9,6 +9,10 @@ class OrderLookupError(Exception):
     """The provider's order could not be fetched, so nothing can be saved."""
 
 
+class InvalidPayloadError(Exception):
+    """The webhook payload is missing fields the provider documents as present."""
+
+
 @dataclass(frozen=True)
 class OrderData:
     provider: str
