@@ -9,7 +9,13 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from . import constants
 from .models import Order
 from .providers import registry
-from .providers.base import OrderClient, OrderLookupError, Provider
+from .providers.base import (
+    InvalidPayloadError,
+    OrderClient,
+    OrderLookupError,
+    Provider,
+)
+from .providers.doordash import DoorDashProvider
 from .providers.uber import STATUS_MAP, FixtureOrderClient, UberProvider
 
 FIXTURES_DIR = settings.REPO_ROOT / "fixtures"
@@ -171,3 +177,69 @@ class UberProviderTests(SimpleTestCase):
         provider = UberProvider(order_client=BrokenClient())
         with self.assertRaises(OrderLookupError):
             provider.build_order(self.payload)
+
+
+@override_settings(DOORDASH_WEBHOOK_AUTH_HEADER=DOORDASH_AUTH, DEFAULT_CURRENCY="USD")
+class DoorDashProviderTests(SimpleTestCase):
+    def setUp(self):
+        self.provider = DoorDashProvider()
+        self.body = fixture_bytes("doordash_order.json")
+        self.payload = json.loads(self.body)
+
+    def test_matches_only_payloads_with_event_and_order(self):
+        self.assertTrue(self.provider.matches(self.payload))
+        self.assertFalse(self.provider.matches({"event": {}}))
+        self.assertFalse(self.provider.matches({"event": {}, "order": "text"}))
+        self.assertFalse(self.provider.matches({"meta": {"resource_id": "x"}}))
+
+    def test_matching_authorization_header_is_accepted(self):
+        self.assertTrue(
+            self.provider.authenticate(self.body, {"Authorization": DOORDASH_AUTH})
+        )
+
+    def test_wrong_missing_and_prefix_only_headers_are_rejected(self):
+        for headers in (
+            {"Authorization": "Bearer wrong-token-00000001"},
+            {},
+            {"Authorization": "Bearer"},
+            {"Authorization": "é"},
+        ):
+            with self.subTest(headers=headers):
+                self.assertFalse(self.provider.authenticate(self.body, headers))
+
+    def test_build_order_maps_the_payload(self):
+        data = self.provider.build_order(self.payload)
+        self.assertEqual(data.provider, constants.PROVIDER_DOORDASH)
+        self.assertEqual(data.external_order_id, "abc12345")
+        self.assertEqual(data.status, constants.STATUS_NEW)
+        self.assertEqual(data.customer_name, "Kelley W.")
+        self.assertEqual(data.customer_phone, "+18559731040")
+        self.assertEqual(data.total_cents, 2300)
+        self.assertEqual(data.currency, "USD")
+        self.assertEqual(
+            data.line_items,
+            [
+                {
+                    "name": "Burrito Scram-Bowl",
+                    "quantity": 1,
+                    "unit_price_cents": 0,
+                    "line_total_cents": 0,
+                }
+            ],
+        )
+        self.assertIsNone(data.created_at)
+        self.assertEqual(data.raw_payload, self.payload)
+
+    def test_tips_are_not_part_of_the_total(self):
+        self.payload["order"]["tip_amount"] = 500
+        self.payload["order"]["merchant_tip_amount"] = 200
+        self.assertEqual(self.provider.build_order(self.payload).total_cents, 2300)
+
+    def test_missing_fields_and_unknown_status_raise_invalid_payload(self):
+        del self.payload["order"]["subtotal"]
+        with self.assertRaises(InvalidPayloadError):
+            self.provider.build_order(self.payload)
+        self.payload = json.loads(self.body)
+        self.payload["event"]["status"] = "SOMETHING_ELSE"
+        with self.assertRaises(InvalidPayloadError):
+            self.provider.build_order(self.payload)
