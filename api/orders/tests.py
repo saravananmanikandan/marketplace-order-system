@@ -589,3 +589,73 @@ class EndToEndFlowTests(WebhookTestCase):
         self.post_doordash()
         self.assertEqual(Order.objects.count(), 2)
         self.assertEqual(Order.objects.get(pk=order_id).status, constants.STATUS_COMPLETED)
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class ProviderDocumentationTests(WebhookTestCase):
+    def post_uber_with_order(self, change_order, webhook_body: bytes | None = None):
+        order = json.loads(fixture_bytes("uber_get_order.json"))
+        change_order(order)
+        with tempfile.TemporaryDirectory() as directory:
+            order_path = Path(directory) / "order.json"
+            order_path.write_text(json.dumps(order))
+            with override_settings(UBER_GET_ORDER_FIXTURE=order_path):
+                return self.post_uber(webhook_body)
+
+    def test_uber_status_comes_from_current_state_for_every_documented_value(self):
+        expected = {
+            "CREATED": constants.STATUS_NEW,
+            "ACCEPTED": constants.STATUS_ACCEPTED,
+            "DENIED": constants.STATUS_CANCELLED,
+            "CANCELED": constants.STATUS_CANCELLED,
+            "FINISHED": constants.STATUS_COMPLETED,
+            "UNKNOWN": constants.STATUS_NEW,
+        }
+        for state, internal in expected.items():
+            with self.subTest(current_state=state):
+                Order.objects.all().delete()
+                self.post_uber_with_order(lambda order: order.update(current_state=state))
+                self.assertEqual(Order.objects.get().status, internal)
+
+    def test_uber_meta_status_never_changes_the_order_status(self):
+        for notification_status in ("pos", "CANCELED", "FINISHED", "ready"):
+            with self.subTest(meta_status=notification_status):
+                Order.objects.all().delete()
+                webhook = json.loads(fixture_bytes("uber_webhook.json"))
+                webhook["meta"]["status"] = notification_status
+                self.post_uber(json.dumps(webhook).encode())
+                self.assertEqual(Order.objects.get().status, constants.STATUS_NEW)
+
+    def test_uber_customer_name_is_first_plus_last_name_when_present(self):
+        cases = [
+            ({"first_name": "Larry", "last_name": "B."}, "Larry B."),
+            ({"first_name": "Larry"}, "Larry"),
+            ({}, ""),
+        ]
+        for eater, expected in cases:
+            with self.subTest(eater=eater):
+                Order.objects.all().delete()
+                self.post_uber_with_order(lambda order: order.update(eater=eater))
+                self.assertEqual(Order.objects.get().customer_name, expected)
+
+    def test_uber_created_at_is_placed_at_when_present(self):
+        self.post_uber()
+        self.assertEqual(Order.objects.get().created_at.isoformat(), "2019-05-14T20:16:54+00:00")
+
+    def test_uber_created_at_falls_back_to_received_time_without_placed_at(self):
+        before = timezone.now()
+        self.post_uber_with_order(lambda order: order.pop("placed_at"))
+        created_at = Order.objects.get().created_at
+        self.assertTrue(before <= created_at <= timezone.now())
+
+    def test_doordash_created_at_is_the_received_time(self):
+        before = timezone.now()
+        self.post_doordash()
+        created_at = Order.objects.get().created_at
+        self.assertTrue(before <= created_at <= timezone.now())
+
+    def test_doordash_subtotal_and_tax_are_cents_and_add_up_to_the_total(self):
+        payload = json.loads(fixture_bytes("doordash_order.json"))
+        payload["order"].update(subtotal=1234, tax=99, tip_amount=500)
+        self.post_doordash(json.dumps(payload).encode())
+        self.assertEqual(Order.objects.get().total_cents, 1333)
