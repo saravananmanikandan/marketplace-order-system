@@ -1,11 +1,11 @@
 import { Route, Routes } from "react-router-dom";
+import OrderListPage from "./pages/OrderListPage.jsx";
 
 export default function App() {
   return (
     <main className="page">
-      <h1>Marketplace Orders</h1>
       <Routes>
-        <Route path="/" element={<p>Orders will appear here.</p>} />
+        <Route path="/" element={<OrderListPage />} />
       </Routes>
     </main>
   );
