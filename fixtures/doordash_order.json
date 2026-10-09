@@ -1,0 +1,76 @@
+{
+  "event": {
+    "type": "OrderCreate",
+    "status": "NEW"
+  },
+  "order": {
+    "categories": [
+      {
+        "items": [
+          {
+            "extras": [
+              {
+                "merchant_supplied_id": "INDIVIDUAL_SAUCES",
+                "name": "Signature Sauces",
+                "options": [
+                  {
+                    "extra": [
+                      {
+                        "merchant_supplied_id": "BREAKFAST_CONDIMENTS",
+                        "name": "Breakfast Condiments",
+                        "options": [
+                          {
+                            "merchant_supplied_id": "ADD_SALT",
+                            "name": "Salt",
+                            "price": 0,
+                            "quantity": 1
+                          }
+                        ]
+                      }
+                    ],
+                    "merchant_supplied_id": "ADD_KETCHUP_INDIVIDUAL",
+                    "name": "KETCHUP",
+                    "price": 0,
+                    "quantity": 1
+                  }
+                ]
+              }
+            ],
+            "merchant_supplied_id": "26d3fce0-efd2-46d3-832c-ced5bc956401",
+            "name": "Burrito Scram-Bowl",
+            "price": 0,
+            "quantity": 1
+          }
+        ],
+        "merchant_supplied_id": "Entree",
+        "name": "Entree"
+      }
+    ],
+    "consumer": {
+      "email": "support@doordash.com",
+      "first_name": "Kelley",
+      "id": 0,
+      "last_name": "W.",
+      "phone": "+18559731040"
+    },
+    "id": "abc12345",
+    "order_special_instructions": "",
+    "store": {
+      "merchant_supplied_id": "abc12345",
+      "provider_type": "eatsa"
+    },
+    "estimated_pickup_time": "2019-08-24T14:15:22Z",
+    "is_pickup": true,
+    "subtotal": 2000,
+    "tax": 300,
+    "is_tax_remitted_by_doordash": true,
+    "tax_amount_remitted_by_doordash": 0,
+    "commission_type": "regular",
+    "delivery_short_code": "string",
+    "fulfillment_type": "dx_delivery",
+    "merchant_tip_amount": 0,
+    "experience": "DOORDASH",
+    "is_plastic_ware_option_selected": true,
+    "tip_amount": 0
+  }
+}
