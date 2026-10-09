@@ -520,7 +520,7 @@ class OrderApiTests(APITestCase):
         self.assertEqual(self.list_ids(ordering="-created_at"), oldest_first[::-1])
 
     def test_unknown_ordering_falls_back_to_newest_first(self):
-        self.assertEqual(self.list_ids(ordering="total_cents")[0], self.dd_new.id)
+        self.assertEqual(self.list_ids(ordering="bogus")[0], self.dd_new.id)
 
     def test_filters_combine(self):
         self.assertEqual(self.list_ids(provider="uber", status="new"), [self.uber_old.id])
@@ -752,3 +752,76 @@ class ReadmeExampleTests(SimpleTestCase):
 
     def test_readme_has_exactly_the_two_documented_bodies(self):
         self.assertEqual(len(self.readme_bodies()), 2)
+
+
+class OrderSortingTests(APITestCase):
+    def setUp(self):
+        now = timezone.now()
+        rows = {
+            "a": ("uber", "ext-b", "bob", constants.STATUS_NEW, 300, 4),
+            "b": ("doordash", "ext-a", "Alice", constants.STATUS_READY, 100, 3),
+            "c": ("uber", "ext-c", "carol", constants.STATUS_CANCELLED, 500, 2),
+            "d": ("doordash", "ext-d", "Dave", constants.STATUS_ACCEPTED, 200, 1),
+            "e": ("uber", "ext-e", "alice", constants.STATUS_COMPLETED, 400, 5),
+        }
+        self.ids = {
+            name: make_order(
+                provider=provider,
+                external_order_id=external_id,
+                customer_name=customer,
+                status=order_status,
+                total_cents=total,
+                created_at=now - timedelta(hours=hours_ago),
+            ).id
+            for name, (provider, external_id, customer, order_status, total, hours_ago) in rows.items()
+        }
+
+    def names_for(self, ordering: str, **params) -> list[str]:
+        response = self.client.get(reverse("order-list"), {"ordering": ordering, **params})
+        self.assertEqual(response.status_code, 200)
+        by_id = {order_id: name for name, order_id in self.ids.items()}
+        return [by_id[row["id"]] for row in response.data["results"]]
+
+    def expected_ascending(self):
+        return {
+            "provider": ["b", "d", "a", "c", "e"],
+            "external_order_id": ["b", "a", "c", "d", "e"],
+            "customer_name": ["b", "e", "a", "c", "d"],
+            "status": ["a", "d", "b", "e", "c"],
+            "total_cents": ["b", "d", "a", "e", "c"],
+            "created_at": ["e", "a", "b", "c", "d"],
+        }
+
+    def test_every_field_sorts_ascending_and_descending(self):
+        for field, ascending in self.expected_ascending().items():
+            with self.subTest(field=field, direction="asc"):
+                self.assertEqual(self.names_for(field), ascending)
+            with self.subTest(field=field, direction="desc"):
+                self.assertEqual(self.names_for(f"-{field}"), ascending[::-1])
+
+    def test_status_sorts_by_workflow_position_not_alphabetically(self):
+        self.assertEqual(self.names_for("status"), ["a", "d", "b", "e", "c"])
+
+    def test_customer_name_ignores_case(self):
+        names = self.names_for("customer_name")
+        self.assertEqual(names[:2], ["b", "e"])
+
+    def test_ties_break_on_id_in_the_same_direction(self):
+        self.assertEqual(self.names_for("provider")[:2], ["b", "d"])
+        self.assertEqual(self.names_for("-provider")[3:], ["d", "b"])
+
+    def test_invalid_or_empty_ordering_falls_back_to_newest_first(self):
+        newest_first = ["d", "c", "b", "a", "e"]
+        for ordering in ("", "-", "bogus", "id", "-id", "--created_at", "total", "created_at;drop"):
+            with self.subTest(ordering=ordering):
+                self.assertEqual(self.names_for(ordering), newest_first)
+        self.assertEqual(self.client.get(reverse("order-list")).data["count"], 5)
+
+    def test_paging_through_sorted_results_has_no_duplicates_or_gaps(self):
+        for field, ascending in self.expected_ascending().items():
+            for ordering, expected in ((field, ascending), (f"-{field}", ascending[::-1])):
+                with self.subTest(ordering=ordering), override_settings(PAGE_SIZE=2):
+                    seen = []
+                    for page in (1, 2, 3):
+                        seen += self.names_for(ordering, page=page)
+                    self.assertEqual(seen, expected)

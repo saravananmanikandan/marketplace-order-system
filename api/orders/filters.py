@@ -1,4 +1,5 @@
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
+from django.db.models.expressions import OrderBy
 from django.http import QueryDict
 
 from . import constants
@@ -22,11 +23,11 @@ def filter_orders(queryset: QuerySet, params: QueryDict) -> QuerySet:
     return queryset.order_by(*resolve_ordering(params.get("ordering")))
 
 
-def resolve_ordering(requested: str | None) -> tuple[str, str]:
-    ordering = (
-        requested
-        if requested in constants.ORDERING_CHOICES
-        else constants.ORDERING_NEWEST_FIRST
-    )
-    tiebreaker = "-id" if ordering.startswith("-") else "id"
-    return ordering, tiebreaker
+def resolve_ordering(requested: str | None) -> list[OrderBy]:
+    requested = requested or ""
+    descending = requested.startswith(constants.DESCENDING_PREFIX)
+    key = requested.removeprefix(constants.DESCENDING_PREFIX)
+    if key not in constants.ORDERING_EXPRESSIONS:
+        return resolve_ordering(constants.DEFAULT_ORDERING)
+    expressions = [constants.ORDERING_EXPRESSIONS[key], F("id")]
+    return [expression.desc() if descending else expression.asc() for expression in expressions]

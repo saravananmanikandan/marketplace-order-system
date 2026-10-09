@@ -213,6 +213,8 @@ If the backend is not running, the scripts say so and exit with an error.
 
 ## Read the API
 
+`ordering` can be `provider`, `external_order_id`, `customer_name`, `status` (workflow order), `total_cents` or `created_at`. Put `-` in front for descending. Anything else means `-created_at`.
+
 ```
 curl "http://localhost:8000/api/orders"
 curl "http://localhost:8000/api/orders?provider=uber&status=new&search=larry&ordering=created_at&page=1"

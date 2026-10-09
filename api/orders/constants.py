@@ -1,3 +1,6 @@
+from django.db.models import Case, F, IntegerField, Value, When
+from django.db.models.functions import Lower
+
 PROVIDER_UBER = "uber"
 PROVIDER_DOORDASH = "doordash"
 PROVIDER_CHOICES = [
@@ -26,9 +29,21 @@ TERMINAL_STATUSES = frozenset({STATUS_COMPLETED, STATUS_CANCELLED})
 UBER_SIGNATURE_HEADER = "X-Uber-Signature"
 AUTHORIZATION_HEADER = "Authorization"
 
-ORDERING_NEWEST_FIRST = "-created_at"
-ORDERING_OLDEST_FIRST = "created_at"
-ORDERING_CHOICES = (ORDERING_NEWEST_FIRST, ORDERING_OLDEST_FIRST)
+DEFAULT_ORDERING = "-created_at"
+DESCENDING_PREFIX = "-"
+STATUS_RANK = Case(
+    *[When(status=status, then=Value(rank)) for rank, status in enumerate(STATUS_ORDER)],
+    output_field=IntegerField(),
+)
+# The only values `ordering` may take (each optionally prefixed with "-").
+ORDERING_EXPRESSIONS = {
+    "provider": F("provider"),
+    "external_order_id": F("external_order_id"),
+    "customer_name": Lower("customer_name"),
+    "status": STATUS_RANK,
+    "total_cents": F("total_cents"),
+    "created_at": F("created_at"),
+}
 
 MAX_CUSTOMER_NAME_LENGTH = 255
 MAX_CUSTOMER_PHONE_LENGTH = 64
