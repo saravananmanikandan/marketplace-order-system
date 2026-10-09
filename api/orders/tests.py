@@ -34,6 +34,17 @@ def fixture_bytes(name: str) -> bytes:
     return (FIXTURES_DIR / name).read_bytes()
 
 
+OFFICIAL_UBER_RESOURCE_ID = "153dd7f1-339d-4619-940c-418943c14636"
+DEMO_UBER_RESOURCE_ID = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+
+
+def uber_webhook_for(resource_id: str) -> bytes:
+    payload = json.loads(fixture_bytes("uber_webhook.json"))
+    payload["meta"]["resource_id"] = resource_id
+    payload["resource_href"] = payload["resource_href"].rsplit("/", 1)[0] + "/" + resource_id
+    return json.dumps(payload).encode()
+
+
 def sign_uber(body: bytes, secret: str = UBER_SECRET) -> str:
     return hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
 
@@ -150,7 +161,7 @@ class UberProviderTests(SimpleTestCase):
     def test_build_order_maps_the_fetched_order(self):
         data = self.provider.build_order(self.payload)
         self.assertEqual(data.provider, constants.PROVIDER_UBER)
-        self.assertEqual(data.external_order_id, "f9f363d1-e1c2-4595-b477-c649845bc953")
+        self.assertEqual(data.external_order_id, OFFICIAL_UBER_RESOURCE_ID)
         self.assertEqual(data.status, constants.STATUS_NEW)
         self.assertEqual(data.customer_name, "Larry")
         self.assertEqual(data.customer_phone, "+1 555-555-5555")
@@ -342,7 +353,7 @@ class WebhookIngestTests(WebhookTestCase):
         self.post_uber()
         order = Order.objects.get()
         self.assertEqual(order.provider, constants.PROVIDER_UBER)
-        self.assertEqual(order.external_order_id, "f9f363d1-e1c2-4595-b477-c649845bc953")
+        self.assertEqual(order.external_order_id, OFFICIAL_UBER_RESOURCE_ID)
         self.assertEqual(order.status, constants.STATUS_NEW)
         self.assertEqual(order.customer_name, "Larry")
         self.assertEqual(order.customer_phone, "+1 555-555-5555")
@@ -352,9 +363,9 @@ class WebhookIngestTests(WebhookTestCase):
         self.assertEqual(
             order.raw_payload["webhook"], json.loads(fixture_bytes("uber_webhook.json"))
         )
-        self.assertEqual(
-            order.raw_payload["order"], json.loads(fixture_bytes("uber_get_order.json"))
-        )
+        official_order = json.loads(fixture_bytes("uber_get_order.json"))
+        official_order.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id="14636")
+        self.assertEqual(order.raw_payload["order"], official_order)
 
     def test_doordash_webhook_produces_one_correct_order(self):
         self.post_doordash()
@@ -659,3 +670,69 @@ class ProviderDocumentationTests(WebhookTestCase):
         payload["order"].update(subtotal=1234, tax=99, tip_amount=500)
         self.post_doordash(json.dumps(payload).encode())
         self.assertEqual(Order.objects.get().total_cents, 1333)
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class UberOrderResolutionTests(WebhookTestCase):
+    def test_official_webhook_example_creates_exactly_one_order(self):
+        for _ in range(2):
+            self.assertEqual(self.post_uber().status_code, 200)
+        order = Order.objects.get()
+        self.assertEqual(order.external_order_id, OFFICIAL_UBER_RESOURCE_ID)
+        self.assertEqual(order.raw_payload["order"]["display_id"], "14636")
+
+    def test_a_new_valid_resource_id_creates_a_second_uber_order(self):
+        self.post_uber()
+        response = self.post_uber(uber_webhook_for("my-new_order-42"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Order.objects.filter(provider=constants.PROVIDER_UBER).count(), 2)
+        new_order = Order.objects.get(external_order_id="my-new_order-42")
+        self.assertEqual(new_order.raw_payload["order"]["display_id"], "my-new_order-42"[-5:])
+        self.assertEqual(new_order.total_cents, 1399)
+
+    def test_the_same_new_id_twice_leaves_one_row(self):
+        body = uber_webhook_for("repeat-me-1")
+        self.post_uber(body)
+        self.post_uber(body)
+        self.assertEqual(Order.objects.filter(external_order_id="repeat-me-1").count(), 1)
+
+    def test_unsafe_resource_ids_return_502_and_save_nothing(self):
+        for resource_id in ("../x", "a/b", "a\\b", "has space", "new\n", "", "x.json", 42, None):
+            with self.subTest(resource_id=resource_id):
+                payload = json.loads(fixture_bytes("uber_webhook.json"))
+                payload["meta"]["resource_id"] = resource_id
+                response = self.post_uber(json.dumps(payload).encode())
+                self.assertEqual(response.status_code, 502)
+                self.assertEqual(Order.objects.count(), 0)
+
+    def test_a_demo_order_file_named_after_the_id_is_used(self):
+        self.post_uber(uber_webhook_for(DEMO_UBER_RESOURCE_ID))
+        order = Order.objects.get()
+        self.assertEqual(order.external_order_id, DEMO_UBER_RESOURCE_ID)
+        self.assertEqual(order.customer_name, "Priya S.")
+        self.assertEqual(order.total_cents, 1099)
+
+    def test_the_official_fixture_file_is_never_modified(self):
+        before = fixture_bytes("uber_get_order.json")
+        self.post_uber(uber_webhook_for("some-other-id"))
+        self.assertEqual(fixture_bytes("uber_get_order.json"), before)
+
+
+class FixtureOrderClientTests(SimpleTestCase):
+    def test_ids_outside_the_allowed_pattern_raise_a_lookup_error(self):
+        client = FixtureOrderClient(
+            fixture_path=FIXTURES_DIR / "uber_get_order.json",
+            demo_dir=FIXTURES_DIR / "demo" / "uber_orders",
+        )
+        for resource_id in ("../x", "../../uber_get_order", "a/b", "", "id\n"):
+            with self.subTest(resource_id=resource_id):
+                with self.assertRaises(OrderLookupError):
+                    client.get_order(resource_id)
+
+    def test_unknown_id_gets_the_official_order_with_its_own_id(self):
+        client = FixtureOrderClient(
+            fixture_path=FIXTURES_DIR / "uber_get_order.json",
+            demo_dir=FIXTURES_DIR / "demo" / "uber_orders",
+        )
+        order = client.get_order("abc-123-XYZ")
+        self.assertEqual((order["id"], order["display_id"]), ("abc-123-XYZ", "3-XYZ"))

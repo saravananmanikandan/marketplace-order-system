@@ -76,7 +76,7 @@ The full order is then fetched with Get Order using `meta.resource_id`. In produ
 
 Money objects are `{amount, currency_code, formatted_amount}`. `amount` is documented as an integer in the smallest currency denomination, and currency comes from `currency_code` on the total. The sample's cart item prices do not add up to `payment.charges.sub_total`, so totals are never computed from items.
 
-The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. `FixtureOrderClient` returns the Get Order fixture for any `resource_id`, `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`.
+The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. `FixtureOrderClient` rejects a `resource_id` that does not match `^[A-Za-z0-9_-]+$` (the webhook then returns 502 and saves nothing), returns `fixtures/demo/uber_orders/<resource_id>.json` when that file exists, and otherwise returns a copy of the official Get Order fixture with `id` set to the `resource_id` and `display_id` set to its last 5 characters. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`.
 
 When sending the Uber fixture with curl, use `--data-binary @file`. Plain `-d @file` strips newlines, changes the body and breaks the signature.
 

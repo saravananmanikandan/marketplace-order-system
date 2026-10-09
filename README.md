@@ -95,11 +95,10 @@ scripts/send_doordash_webhook.sh fixtures/demo/doordash_order_2.json
 scripts/send_doordash_webhook.sh fixtures/demo/doordash_order_3.json
 ```
 
-The Uber lookup is served from a fixture file. To ingest the Uber demo order, start the
-backend with the demo lookup file, then send the demo webhook:
+The Uber demo order has its own Get Order file in `fixtures/demo/uber_orders/`, so it needs no
+extra setup:
 
 ```
-UBER_GET_ORDER_FIXTURE=fixtures/demo/uber_get_order.json python manage.py runserver
 scripts/send_uber_webhook.sh fixtures/demo/uber_webhook.json
 ```
 

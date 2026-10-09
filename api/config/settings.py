@@ -67,6 +67,7 @@ if len(DOORDASH_WEBHOOK_AUTH_HEADER) < MIN_DOORDASH_AUTH_HEADER_LENGTH:
     )
 
 UBER_GET_ORDER_FIXTURE = resolve_repo_path(require_env("UBER_GET_ORDER_FIXTURE"))
+UBER_DEMO_ORDERS_DIR = REPO_ROOT / "fixtures" / "demo" / "uber_orders"
 DEFAULT_CURRENCY = require_env("DEFAULT_CURRENCY")
 PAGE_SIZE = int(require_env("PAGE_SIZE"))
 

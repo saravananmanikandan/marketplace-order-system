@@ -1,8 +1,10 @@
 import hashlib
 import hmac
 import json
+import re
 from collections.abc import Mapping
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from django.conf import settings
@@ -22,14 +24,35 @@ STATUS_MAP = {
 
 
 class FixtureOrderClient(OrderClient):
-    def __init__(self, fixture_path: str | None = None) -> None:
-        self.fixture_path = fixture_path or settings.UBER_GET_ORDER_FIXTURE
+    def __init__(
+        self, fixture_path: Path | str | None = None, demo_dir: Path | str | None = None
+    ) -> None:
+        self.fixture_path = Path(fixture_path or settings.UBER_GET_ORDER_FIXTURE)
+        self.demo_dir = Path(demo_dir or settings.UBER_DEMO_ORDERS_DIR)
 
     def get_order(self, resource_id: str) -> dict[str, Any]:
+        if not self._is_safe_id(resource_id):
+            raise OrderLookupError("resource_id may only contain letters, digits, - and _.")
+        demo_path = self.demo_dir / f"{resource_id}.json"
+        if demo_path.is_file():
+            return self._load(demo_path)
         # The official webhook and Get Order examples carry different ids, so
-        # the fixture is returned for any resource id.
+        # the official order is reused under the id Uber asked for.
+        order = self._load(self.fixture_path)
+        order["id"] = resource_id
+        order["display_id"] = resource_id[-constants.UBER_DISPLAY_ID_LENGTH :]
+        return order
+
+    @staticmethod
+    def _is_safe_id(resource_id: Any) -> bool:
+        return isinstance(resource_id, str) and bool(
+            re.fullmatch(constants.UBER_RESOURCE_ID_PATTERN, resource_id)
+        )
+
+    @staticmethod
+    def _load(path: Path) -> dict[str, Any]:
         try:
-            with open(self.fixture_path, encoding="utf-8") as fixture:
+            with open(path, encoding="utf-8") as fixture:
                 return json.load(fixture)
         except (OSError, json.JSONDecodeError) as error:
             raise OrderLookupError(f"Could not read the order fixture: {error}") from error
