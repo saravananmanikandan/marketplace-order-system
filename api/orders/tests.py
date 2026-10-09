@@ -2,12 +2,14 @@ import hashlib
 import hmac
 import json
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from . import constants
@@ -442,3 +444,148 @@ class WebhookIngestTests(WebhookTestCase):
         self.assertEqual(Order.objects.get().status, constants.STATUS_CANCELLED)
         self.post_uber()
         self.assertEqual(Order.objects.get().status, constants.STATUS_CANCELLED)
+
+
+class OrderApiTests(APITestCase):
+    def setUp(self):
+        now = timezone.now()
+        self.uber_old = make_order(
+            external_order_id="uber-aaa",
+            customer_name="Larry Bird",
+            created_at=now - timedelta(hours=3),
+        )
+        self.uber_mid = make_order(
+            external_order_id="uber-bbb",
+            customer_name="Maya Rose",
+            status=constants.STATUS_READY,
+            created_at=now - timedelta(hours=2),
+        )
+        self.dd_new = make_order(
+            provider=constants.PROVIDER_DOORDASH,
+            external_order_id="dd-ccc",
+            customer_name="Kelley W.",
+            created_at=now - timedelta(hours=1),
+            line_items=[
+                {
+                    "name": "Burrito",
+                    "quantity": 2,
+                    "unit_price_cents": 500,
+                    "line_total_cents": 1000,
+                }
+            ],
+        )
+
+    def list_ids(self, **params) -> list[int]:
+        response = self.client.get(reverse("order-list"), params)
+        self.assertEqual(response.status_code, 200)
+        return [row["id"] for row in response.data["results"]]
+
+    def test_list_defaults_to_newest_first(self):
+        self.assertEqual(
+            self.list_ids(), [self.dd_new.id, self.uber_mid.id, self.uber_old.id]
+        )
+
+    def test_list_rows_expose_customer_as_one_object(self):
+        row = self.client.get(reverse("order-list")).data["results"][0]
+        self.assertEqual(row["customer"], {"name": "Kelley W.", "phone": ""})
+        self.assertNotIn("raw_payload", row)
+
+    def test_filter_by_provider(self):
+        self.assertEqual(self.list_ids(provider="doordash"), [self.dd_new.id])
+
+    def test_filter_by_status(self):
+        self.assertEqual(self.list_ids(status="ready"), [self.uber_mid.id])
+
+    def test_search_by_customer_name_ignores_case(self):
+        self.assertEqual(self.list_ids(search="maya"), [self.uber_mid.id])
+
+    def test_search_by_external_order_id(self):
+        self.assertEqual(self.list_ids(search="DD-CCC"), [self.dd_new.id])
+
+    def test_ordering_in_both_directions(self):
+        oldest_first = [self.uber_old.id, self.uber_mid.id, self.dd_new.id]
+        self.assertEqual(self.list_ids(ordering="created_at"), oldest_first)
+        self.assertEqual(self.list_ids(ordering="-created_at"), oldest_first[::-1])
+
+    def test_unknown_ordering_falls_back_to_newest_first(self):
+        self.assertEqual(self.list_ids(ordering="total_cents")[0], self.dd_new.id)
+
+    def test_filters_combine(self):
+        self.assertEqual(self.list_ids(provider="uber", status="new"), [self.uber_old.id])
+
+    def test_pagination(self):
+        with override_settings(PAGE_SIZE=2):
+            first = self.client.get(reverse("order-list"))
+            second = self.client.get(reverse("order-list"), {"page": 2})
+        self.assertEqual(first.data["count"], 3)
+        self.assertEqual(len(first.data["results"]), 2)
+        self.assertIsNotNone(first.data["next"])
+        self.assertEqual([row["id"] for row in second.data["results"]], [self.uber_old.id])
+        self.assertIsNone(second.data["next"])
+
+    def test_detail_returns_line_items_and_raw_payload(self):
+        response = self.client.get(reverse("order-detail", args=[self.dd_new.id]))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["line_items"][0]["line_total_cents"], 1000)
+        self.assertIn("raw_payload", response.data)
+
+    def test_detail_for_a_missing_id_returns_404(self):
+        self.assertEqual(self.client.get(reverse("order-detail", args=[999999])).status_code, 404)
+
+
+class StatusAdvanceTests(APITestCase):
+    def advance(self, order: Order):
+        return self.client.patch(reverse("order-status", args=[order.id]))
+
+    def test_each_forward_step_in_order(self):
+        order = make_order()
+        for expected in constants.STATUS_PROGRESSION[1:]:
+            response = self.advance(order)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["status"], expected)
+        order.refresh_from_db()
+        self.assertEqual(order.status, constants.STATUS_COMPLETED)
+
+    def test_terminal_states_return_409_and_do_not_change(self):
+        for terminal in (constants.STATUS_COMPLETED, constants.STATUS_CANCELLED):
+            with self.subTest(status=terminal):
+                order = make_order(external_order_id=f"order-{terminal}", status=terminal)
+                self.assertEqual(self.advance(order).status_code, 409)
+                order.refresh_from_db()
+                self.assertEqual(order.status, terminal)
+
+    def test_missing_order_returns_404(self):
+        response = self.client.patch(reverse("order-status", args=[999999]))
+        self.assertEqual(response.status_code, 404)
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class EndToEndFlowTests(WebhookTestCase):
+    def test_whole_flow_from_webhooks_to_terminal_status(self):
+        self.assertEqual(self.post_uber().status_code, 200)
+        self.assertEqual(self.post_doordash().status_code, 200)
+
+        listing = self.client.get(reverse("order-list"))
+        self.assertEqual(listing.data["count"], 2)
+
+        only_doordash = self.client.get(reverse("order-list"), {"provider": "doordash"})
+        self.assertEqual(only_doordash.data["count"], 1)
+        order_id = only_doordash.data["results"][0]["id"]
+
+        detail = self.client.get(reverse("order-detail", args=[order_id]))
+        self.assertEqual(detail.data["external_order_id"], "abc12345")
+        self.assertEqual(detail.data["line_items"][0]["name"], "Burrito Scram-Bowl")
+
+        seen = [detail.data["status"]]
+        while True:
+            response = self.client.patch(reverse("order-status", args=[order_id]))
+            if response.status_code == 409:
+                break
+            seen.append(response.data["status"])
+        self.assertEqual(tuple(seen), constants.STATUS_PROGRESSION)
+        self.assertEqual(self.client.patch(reverse("order-status", args=[order_id])).status_code, 409)
+
+        self.post_uber()
+        self.post_doordash()
+        self.assertEqual(Order.objects.count(), 2)
+        self.assertEqual(Order.objects.get(pk=order_id).status, constants.STATUS_COMPLETED)

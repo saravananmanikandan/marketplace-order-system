@@ -1,13 +1,21 @@
 import json
 
+from django.conf import settings
+from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
+from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .filters import filter_orders
+from .models import Order
 from .providers import ingest
 from .providers.base import InvalidPayloadError, OrderLookupError
+from .serializers import OrderDetailSerializer, OrderListSerializer
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -47,3 +55,36 @@ class OrderWebhookView(APIView):
     @staticmethod
     def _error(message: str, status_code: int) -> Response:
         return Response({"detail": message}, status=status_code)
+
+
+class OrderPagination(PageNumberPagination):
+    def get_page_size(self, request) -> int:
+        return settings.PAGE_SIZE
+
+
+class OrderListView(ListAPIView):
+    serializer_class = OrderListSerializer
+    pagination_class = OrderPagination
+
+    def get_queryset(self):
+        return filter_orders(Order.objects.all(), self.request.query_params)
+
+
+class OrderDetailView(RetrieveAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderDetailSerializer
+
+
+class OrderStatusView(APIView):
+    def patch(self, request, pk: int) -> Response:
+        with transaction.atomic():
+            order = get_object_or_404(Order.objects.select_for_update(), pk=pk)
+            next_status = order.next_status()
+            if next_status is None:
+                return Response(
+                    {"detail": f"Order is already {order.status}."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            order.status = next_status
+            order.save(update_fields=["status", "updated_at"])
+        return Response(OrderDetailSerializer(order).data)
