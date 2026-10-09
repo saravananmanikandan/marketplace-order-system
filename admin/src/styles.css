@@ -194,7 +194,8 @@ h1 {
     left: -9999px;
   }
 
-  .order-row {
+  .order-row,
+  .items tbody tr {
     margin-bottom: 12px;
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -221,4 +222,67 @@ h1 {
   .filters .field {
     flex: 1 1 140px;
   }
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: var(--color-accent);
+}
+
+.detail {
+  padding: 20px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.detail h2 {
+  margin: 24px 0 8px;
+  font-size: 1rem;
+}
+
+.detail-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.detail-header h1 {
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.total {
+  text-align: right;
+  font-size: 1.1rem;
+}
+
+.items tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.error-text {
+  color: #8a1c1c;
+}
+
+.debug {
+  margin-top: 24px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.debug pre {
+  max-height: 360px;
+  overflow: auto;
+  padding: 12px;
+  font-size: 0.8rem;
+  background: var(--color-bg);
+  border-radius: var(--radius);
 }

@@ -14,6 +14,7 @@ export const STATUSES = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+export const STATUS_PROGRESSION = ["new", "accepted", "preparing", "ready", "completed"];
 export const TERMINAL_STATUSES = ["completed", "cancelled"];
 
 export const ORDERING_NEWEST_FIRST = "-created_at";
@@ -32,3 +33,8 @@ export const ORDERS_QUERY_KEY = "orders";
 
 export const labelFor = (options, value) =>
   options.find((option) => option.value === value)?.label ?? value;
+
+export function nextStatus(status) {
+  if (TERMINAL_STATUSES.includes(status)) return null;
+  return STATUS_PROGRESSION[STATUS_PROGRESSION.indexOf(status) + 1];
+}
