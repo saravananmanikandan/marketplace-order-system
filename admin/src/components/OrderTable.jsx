@@ -1,9 +1,8 @@
 import { useNavigate } from "react-router-dom";
-import { PROVIDERS, labelFor } from "../constants.js";
+import { PROVIDERS, SORT_COLUMNS, labelFor } from "../constants.js";
 import { formatMoney, formatTime } from "../format.js";
+import SortableHeader from "./SortableHeader.jsx";
 import StatusBadge from "./StatusBadge.jsx";
-
-const COLUMNS = ["Provider", "Order ID", "Customer", "Status", "Total", "Time"];
 
 function OrderRow({ order }) {
   const navigate = useNavigate();
@@ -29,15 +28,18 @@ function OrderRow({ order }) {
   );
 }
 
-export default function OrderTable({ orders }) {
+export default function OrderTable({ orders, ordering, onSortChange }) {
   return (
     <table className="orders">
       <thead>
         <tr>
-          {COLUMNS.map((column) => (
-            <th key={column} scope="col">
-              {column}
-            </th>
+          {SORT_COLUMNS.map((column) => (
+            <SortableHeader
+              key={column.key}
+              column={column}
+              ordering={ordering}
+              onSortChange={onSortChange}
+            />
           ))}
         </tr>
       </thead>

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DEFAULT_ORDERING, FIRST_PAGE } from "../constants.js";
+import { normalizeOrdering } from "../sorting.js";
 
 const DEFAULTS = { ordering: DEFAULT_ORDERING, page: FIRST_PAGE };
 
@@ -27,7 +28,7 @@ export function useOrderListParams() {
     provider: searchParams.get("provider") ?? "",
     status: searchParams.get("status") ?? "",
     search: searchParams.get("search") ?? "",
-    ordering: searchParams.get("ordering") || DEFAULT_ORDERING,
+    ordering: normalizeOrdering(searchParams.get("ordering")),
     page: readPage(searchParams.get("page")),
   };
 

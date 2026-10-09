@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { PROVIDERS, SEARCH_DEBOUNCE_MS, SORT_OPTIONS, STATUSES } from "../constants.js";
 
-function Select({ label, value, options, onChange, anyLabel }) {
+function Select({ label, value, options, onChange, anyLabel, className = "" }) {
   return (
-    <label className="field">
+    <label className={`field ${className}`.trim()}>
       <span>{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {anyLabel && <option value="">{anyLabel}</option>}
@@ -59,7 +59,8 @@ export default function OrderFilters({ params, onChange, onClear }) {
         onChange={(status) => onChange({ status })}
       />
       <Select
-        label="Sort by time"
+        className="field-sort"
+        label="Sort by"
         value={params.ordering}
         options={SORT_OPTIONS}
         onChange={(ordering) => onChange({ ordering })}

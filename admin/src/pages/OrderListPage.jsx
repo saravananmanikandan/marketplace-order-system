@@ -55,7 +55,11 @@ export default function OrderListPage() {
 
       {data && data.results.length > 0 && (
         <div className={isPlaceholderData ? "results is-stale" : "results"}>
-          <OrderTable orders={data.results} />
+          <OrderTable
+            orders={data.results}
+            ordering={params.ordering}
+            onSortChange={(ordering) => updateParams({ ordering })}
+          />
           <Pagination
             page={params.page}
             count={data.count}

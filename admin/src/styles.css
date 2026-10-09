@@ -190,8 +190,7 @@ h1 {
   }
 
   .orders thead {
-    position: absolute;
-    left: -9999px;
+    display: none;
   }
 
   .order-row,
@@ -306,4 +305,46 @@ h1 {
   color: #6b4a00;
   background: #fff0cc;
   border-radius: var(--radius);
+}
+
+.sort-button {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.sort-button:hover {
+  color: var(--color-text);
+}
+
+.sort-button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.sort-arrow {
+  display: inline-block;
+  min-width: 1em;
+  font-size: 0.7rem;
+  color: var(--color-accent);
+}
+
+.field-sort {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .field-sort {
+    display: flex;
+  }
 }

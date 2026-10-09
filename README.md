@@ -53,6 +53,9 @@ npm run dev
 
 Open http://localhost:5173. Vite forwards `/api` requests to port 8000.
 
+Click a column header to sort by it; click it again to reverse. On narrow screens, use the
+"Sort by" menu instead. The sort is kept in the address (`ordering`), so reload and Back keep it.
+
 The admin polls the API every 5 seconds. Server-sent events or WebSockets would be the next step if volume required it.
 
 ## Send the sample webhooks

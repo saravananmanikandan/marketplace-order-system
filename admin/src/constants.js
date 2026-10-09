@@ -17,14 +17,26 @@ export const STATUSES = [
 export const STATUS_PROGRESSION = ["new", "accepted", "preparing", "ready", "completed"];
 export const TERMINAL_STATUSES = ["completed", "cancelled"];
 
-export const ORDERING_NEWEST_FIRST = "-created_at";
-export const ORDERING_OLDEST_FIRST = "created_at";
-export const DEFAULT_ORDERING = ORDERING_NEWEST_FIRST;
+export const DEFAULT_ORDERING = "-created_at";
+export const DESCENDING_PREFIX = "-";
 
-export const SORT_OPTIONS = [
-  { value: ORDERING_NEWEST_FIRST, label: "Newest first" },
-  { value: ORDERING_OLDEST_FIRST, label: "Oldest first" },
+export const ASCENDING = "ascending";
+export const DESCENDING = "descending";
+
+// firstDirection is what a first click on the column sorts by.
+export const SORT_COLUMNS = [
+  { key: "provider", label: "Provider", firstDirection: ASCENDING, ascending: "Provider A to Z", descending: "Provider Z to A" },
+  { key: "external_order_id", label: "Order ID", firstDirection: ASCENDING, ascending: "Order ID A to Z", descending: "Order ID Z to A" },
+  { key: "customer_name", label: "Customer", firstDirection: ASCENDING, ascending: "Customer A to Z", descending: "Customer Z to A" },
+  { key: "status", label: "Status", firstDirection: ASCENDING, ascending: "Status, new first", descending: "Status, cancelled first" },
+  { key: "total_cents", label: "Total", firstDirection: DESCENDING, ascending: "Total, low to high", descending: "Total, high to low" },
+  { key: "created_at", label: "Time", firstDirection: DESCENDING, ascending: "Time, oldest first", descending: "Time, newest first" },
 ];
+
+export const SORT_OPTIONS = SORT_COLUMNS.flatMap((column) => [
+  { value: column.key, label: column.ascending },
+  { value: `${DESCENDING_PREFIX}${column.key}`, label: column.descending },
+]);
 
 export const SEARCH_DEBOUNCE_MS = 300;
 export const REFRESH_INTERVAL_MS = 5000;
