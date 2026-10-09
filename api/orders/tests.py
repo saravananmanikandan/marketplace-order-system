@@ -1,8 +1,10 @@
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from . import constants
 from .models import Order
+from .providers import registry
+from .providers.base import OrderClient, Provider
 
 
 def make_order(**overrides) -> Order:
@@ -37,3 +39,37 @@ class OrderModelTests(TestCase):
 
     def test_cancelled_has_no_next_status(self):
         self.assertIsNone(make_order(status=constants.STATUS_CANCELLED).next_status())
+
+
+class StubProvider(Provider):
+    def matches(self, payload):
+        return "stub" in payload
+
+    def authenticate(self, raw_body, headers):
+        return True
+
+    def build_order(self, payload):
+        raise NotImplementedError
+
+
+class StubOrderClient(OrderClient):
+    def get_order(self, resource_id):
+        return {"id": resource_id}
+
+
+class RegistryTests(SimpleTestCase):
+    @override_settings(WEBHOOK_PROVIDERS=["orders.tests.StubProvider"])
+    def test_providers_are_loaded_from_settings(self):
+        providers = registry.get_providers()
+        self.assertEqual(len(providers), 1)
+        self.assertIsInstance(providers[0], StubProvider)
+
+    @override_settings(WEBHOOK_PROVIDERS=[])
+    def test_empty_provider_setting_loads_nothing(self):
+        self.assertEqual(registry.get_providers(), [])
+
+    @override_settings(UBER_ORDER_CLIENT="orders.tests.StubOrderClient")
+    def test_order_client_is_loaded_from_settings(self):
+        client = registry.get_order_client()
+        self.assertIsInstance(client, StubOrderClient)
+        self.assertEqual(client.get_order("abc"), {"id": "abc"})
