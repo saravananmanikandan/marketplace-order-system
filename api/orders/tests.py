@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import re
 import tempfile
 from datetime import timedelta
 from pathlib import Path
@@ -736,3 +737,18 @@ class FixtureOrderClientTests(SimpleTestCase):
         )
         order = client.get_order("abc-123-XYZ")
         self.assertEqual((order["id"], order["display_id"]), ("abc-123-XYZ", "3-XYZ"))
+
+
+class ReadmeExampleTests(SimpleTestCase):
+    def readme_bodies(self) -> list[dict]:
+        readme = (settings.REPO_ROOT / "README.md").read_text()
+        bodies = re.findall(r"<<'EOF'\n(.*?)\nEOF\n", readme, re.DOTALL)
+        return [json.loads(body) for body in bodies]
+
+    def test_each_readme_curl_body_equals_its_fixture(self):
+        uber_body, doordash_body = self.readme_bodies()
+        self.assertEqual(uber_body, json.loads(fixture_bytes("uber_webhook.json")))
+        self.assertEqual(doordash_body, json.loads(fixture_bytes("doordash_order.json")))
+
+    def test_readme_has_exactly_the_two_documented_bodies(self):
+        self.assertEqual(len(self.readme_bodies()), 2)

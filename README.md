@@ -65,26 +65,131 @@ scripts/send_doordash_webhook.sh
 
 Each prints `HTTP 200` on success. Running one again does not create a second order.
 
-To do the same by hand, run these from the repository root. They use the development
-values from `.env.example`. Change them if you changed `.env`.
+To send them by hand, run these from the repository root. Each block is complete: it
+loads `.env`, holds the whole JSON body, and sends it. You can paste a block into a new
+terminal as it is.
 
-Uber Eats (the signature is the HMAC-SHA256 of the file bytes, so use `--data-binary`):
+Uber Eats. The signature is the HMAC-SHA256 of the exact body, made with your client
+secret:
 
 ```
+set -a; source .env; set +a
+
+BODY=$(cat <<'EOF'
+{
+  "event_type": "orders.notification",
+  "event_id": "c4d2261e-2779-4eb6-beb0-cb41235c751e",
+  "event_time": 1427343990,
+  "meta": {
+    "resource_id": "153dd7f1-339d-4619-940c-418943c14636",
+    "status": "pos",
+    "user_id": "89dd9741-66b5-4bb4-b216-a813f3b21b4f"
+  },
+  "resource_href": "https://api.uber.com/v2/eats/order/153dd7f1-339d-4619-940c-418943c14636"
+}
+EOF
+)
+
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$UBER_CLIENT_SECRET" | awk '{print $NF}')
+
 curl -i -X POST http://localhost:8000/api/webhooks/orders \
   -H "Content-Type: application/json" \
-  -H "X-Uber-Signature: $(openssl dgst -sha256 -hmac 'dev-uber-client-secret-0001' fixtures/uber_webhook.json | awk '{print $NF}')" \
-  --data-binary @fixtures/uber_webhook.json
+  -H "X-Uber-Signature: $SIG" \
+  --data-binary "$BODY"
 ```
+
+To send another order, change `meta.resource_id` and the end of `resource_href` to the same
+new id (letters, digits, `-` and `_`). Or use the script: `scripts/send_uber_webhook.sh my-uber-order-1`.
 
 DoorDash:
 
 ```
+set -a; source .env; set +a
+
 curl -i -X POST http://localhost:8000/api/webhooks/orders \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer dev-doordash-token-0001" \
-  --data-binary @fixtures/doordash_order.json
+  -H "Authorization: $DOORDASH_WEBHOOK_AUTH_HEADER" \
+  --data-binary @- <<'EOF'
+{
+  "event": {
+    "type": "OrderCreate",
+    "status": "NEW"
+  },
+  "order": {
+    "categories": [
+      {
+        "items": [
+          {
+            "extras": [
+              {
+                "merchant_supplied_id": "INDIVIDUAL_SAUCES",
+                "name": "Signature Sauces",
+                "options": [
+                  {
+                    "extra": [
+                      {
+                        "merchant_supplied_id": "BREAKFAST_CONDIMENTS",
+                        "name": "Breakfast Condiments",
+                        "options": [
+                          {
+                            "merchant_supplied_id": "ADD_SALT",
+                            "name": "Salt",
+                            "price": 0,
+                            "quantity": 1
+                          }
+                        ]
+                      }
+                    ],
+                    "merchant_supplied_id": "ADD_KETCHUP_INDIVIDUAL",
+                    "name": "KETCHUP",
+                    "price": 0,
+                    "quantity": 1
+                  }
+                ]
+              }
+            ],
+            "merchant_supplied_id": "26d3fce0-efd2-46d3-832c-ced5bc956401",
+            "name": "Burrito Scram-Bowl",
+            "price": 0,
+            "quantity": 1
+          }
+        ],
+        "merchant_supplied_id": "Entree",
+        "name": "Entree"
+      }
+    ],
+    "consumer": {
+      "email": "support@doordash.com",
+      "first_name": "Kelley",
+      "id": 0,
+      "last_name": "W.",
+      "phone": "+18559731040"
+    },
+    "id": "abc12345",
+    "order_special_instructions": "",
+    "store": {
+      "merchant_supplied_id": "abc12345",
+      "provider_type": "eatsa"
+    },
+    "estimated_pickup_time": "2019-08-24T14:15:22Z",
+    "is_pickup": true,
+    "subtotal": 2000,
+    "tax": 300,
+    "is_tax_remitted_by_doordash": true,
+    "tax_amount_remitted_by_doordash": 0,
+    "commission_type": "regular",
+    "delivery_short_code": "string",
+    "fulfillment_type": "dx_delivery",
+    "merchant_tip_amount": 0,
+    "experience": "DOORDASH",
+    "is_plastic_ware_option_selected": true,
+    "tip_amount": 0
+  }
+}
+EOF
 ```
+
+To send another order, change `order.id`. Or use the script: `scripts/send_doordash_webhook.sh my-doordash-order-1`.
 
 ### More orders
 
