@@ -101,6 +101,7 @@
   color: var(--color-muted);
 }
 
+.sim-form select:disabled,
 .sim-group:disabled {
   opacity: 0.55;
 }
@@ -239,4 +240,38 @@
 .sim-sent summary {
   cursor: pointer;
   color: var(--color-accent);
+}
+
+.sim-curl {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sim-copy-curl {
+  align-self: stretch;
+}
+
+.sim-hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.sim-copy-status {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: 0.85rem;
+  color: #14532d;
+}
+
+.sim-curl pre {
+  max-height: 200px;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--color-bg);
+  border-radius: var(--radius);
 }

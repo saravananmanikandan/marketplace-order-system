@@ -2,13 +2,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ORDERS_QUERY_KEY } from "../constants.js";
-import { sendSimulatedWebhook } from "./demoApi.js";
+import { fetchCurlCommand, sendSimulatedWebhook } from "./demoApi.js";
 
 const UBER = "uber_eats";
 const DOORDASH = "doordash";
 const PROVIDER_LABELS = { [UBER]: "Uber Eats", [DOORDASH]: "DoorDash" };
 const PRESET_LABELS = { official: "Official sample", random: "Random order", custom: "Custom" };
 const CUSTOM_PRESET = "custom";
+const OFFICIAL_PRESET = "official";
 const NEW_ORDER = "new";
 const REUSE_ORDER = "reuse";
 const CENTS_PER_DOLLAR = 100;
@@ -188,6 +189,8 @@ export default function SimulatorDrawer({ config, lastOrderIds, onSent, onClose 
   const [rows, setRows] = useState(() => [emptyRow()]);
   const lastOrderId = lastOrderIds?.[form.provider];
   const isCustom = form.preset === CUSTOM_PRESET;
+  // The official sample is sent unchanged apart from its id, so it keeps its own state.
+  const usesUberState = form.preset !== OFFICIAL_PRESET;
   const setField = (field) => (event) => {
     const { type, checked, value } = event.target;
     setForm((current) => ({ ...current, [field]: type === "checkbox" ? checked : value }));
@@ -198,6 +201,25 @@ export default function SimulatorDrawer({ config, lastOrderIds, onSent, onClose 
     onSuccess: (result) => {
       onSent(result.last_order_ids);
       queryClient.invalidateQueries({ queryKey: [ORDERS_QUERY_KEY] });
+    },
+  });
+
+  const [copyMessage, setCopyMessage] = useState("");
+  const curlRef = useRef(null);
+  const updatesExistingOrder = form.orderChoice === REUSE_ORDER && Boolean(lastOrderId);
+  const copyCurl = useMutation({
+    mutationFn: () => fetchCurlCommand(toOptions(form, rows, lastOrderId)),
+    onMutate: () => setCopyMessage(""),
+    onSuccess: async (copied) => {
+      const effect = updatesExistingOrder ? "updates" : "creates";
+      try {
+        await navigator.clipboard.writeText(copied.curl);
+        setCopyMessage(`Copied. Running it ${effect} order ${copied.order_id}.`);
+      } catch {
+        // Without clipboard access, select the text so it can be copied by hand.
+        window.getSelection().selectAllChildren(curlRef.current);
+        setCopyMessage(`Selected below: press Cmd+C or Ctrl+C. Running it ${effect} order ${copied.order_id}.`);
+      }
     },
   });
 
@@ -279,8 +301,14 @@ export default function SimulatorDrawer({ config, lastOrderIds, onSent, onClose 
 
           {form.provider === UBER && (
             <label className="field">
-              <span>Uber order state</span>
-              <select value={form.uberState} onChange={setField("uberState")}>
+              <span>
+                Uber order state {!usesUberState && "(not used by Official sample)"}
+              </span>
+              <select
+                value={form.uberState}
+                disabled={!usesUberState}
+                onChange={setField("uberState")}
+              >
                 {config.uber_states.map((state) => (
                   <option key={state} value={state}>
                     {state}
@@ -331,6 +359,34 @@ export default function SimulatorDrawer({ config, lastOrderIds, onSent, onClose 
           <button type="submit" className="button sim-send" disabled={send.isPending}>
             {send.isPending ? "Sending…" : "Send"}
           </button>
+
+          <div className="sim-curl">
+            <button
+              type="button"
+              className="button button-quiet sim-copy-curl"
+              disabled={copyCurl.isPending}
+              onClick={() => copyCurl.mutate()}
+            >
+              {copyCurl.isPending ? "Preparing…" : "Copy curl command"}
+            </button>
+            <p className="muted sim-hint">
+              Builds the same webhook without sending it. Each copy gets a new order id, so
+              pasting it adds a new order (unless "Reuse last order id" is chosen).
+            </p>
+            {copyCurl.isError && (
+              <p role="alert" className="error-text">
+                {copyCurl.error.message}
+              </p>
+            )}
+            <p role="status" className="sim-copy-status">
+              {copyMessage}
+            </p>
+            {copyCurl.isSuccess && (
+              <pre ref={curlRef} tabIndex={0} aria-label="Copied curl command">
+                {copyCurl.data.curl}
+              </pre>
+            )}
+          </div>
         </form>
 
         <section className="sim-result" aria-live="polite" aria-label="Result">

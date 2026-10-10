@@ -28,3 +28,11 @@ export function sendSimulatedWebhook(options) {
     body: JSON.stringify(options),
   });
 }
+
+export function fetchCurlCommand(options) {
+  return demoRequest("/curl", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(options),
+  });
+}
