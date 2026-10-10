@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom";
-
-const ORDERS_PATH = "/";
+import { ORDERS_PATH } from "../constants.js";
 
 export default function AppShell({ actions, children }) {
   return (

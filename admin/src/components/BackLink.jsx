@@ -1,21 +1,22 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { LIST_SEARCH_STATE_KEY, ORDERS_PATH } from "../constants.js";
 import { ChevronLeftIcon } from "./Icons.jsx";
 
-const INITIAL_LOCATION_KEY = "default";
+// The list hands its filters to the detail page when a row is opened, so this
+// always returns to the list with them, wherever the previous history entry is.
+function listSearchFrom(state) {
+  const search = state?.[LIST_SEARCH_STATE_KEY];
+  return typeof search === "string" && search.startsWith("?") ? search : "";
+}
 
 export default function BackLink() {
   const location = useLocation();
-  const navigate = useNavigate();
-  const cameFromApp = location.key !== INITIAL_LOCATION_KEY;
-
-  function handleClick(event) {
-    if (!cameFromApp) return;
-    event.preventDefault();
-    navigate(-1);
-  }
 
   return (
-    <Link to="/" className="button button-ghost back-button" onClick={handleClick}>
+    <Link
+      to={{ pathname: ORDERS_PATH, search: listSearchFrom(location.state) }}
+      className="button button-ghost back-button"
+    >
       <ChevronLeftIcon />
       Back to orders
     </Link>

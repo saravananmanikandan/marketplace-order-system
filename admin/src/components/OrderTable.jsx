@@ -1,12 +1,14 @@
-import { useNavigate } from "react-router-dom";
-import { PROVIDERS, SORT_COLUMNS, labelFor } from "../constants.js";
+import { useLocation, useNavigate } from "react-router-dom";
+import { LIST_SEARCH_STATE_KEY, PROVIDERS, SORT_COLUMNS, labelFor } from "../constants.js";
 import { formatMoney, formatTime } from "../format.js";
 import SortableHeader from "./SortableHeader.jsx";
 import StatusBadge from "./StatusBadge.jsx";
 
 function OrderRow({ order }) {
   const navigate = useNavigate();
-  const openDetail = () => navigate(`/orders/${order.id}`);
+  const { search } = useLocation();
+  const openDetail = () =>
+    navigate(`/orders/${order.id}`, { state: { [LIST_SEARCH_STATE_KEY]: search } });
 
   function handleKeyDown(event) {
     if (event.key === "Enter") openDetail();

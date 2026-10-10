@@ -1,5 +1,8 @@
 export const API_BASE = "/api";
 
+export const ORDERS_PATH = "/";
+export const LIST_SEARCH_STATE_KEY = "listSearch";
+
 export const PROVIDERS = [
   { value: "uber", label: "Uber Eats" },
   { value: "doordash", label: "DoorDash" },
