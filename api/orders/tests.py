@@ -417,6 +417,17 @@ class WebhookReplyTests(WebhookTestCase):
                 self.assertEqual(response.json(), {"ignored": ignored})
                 self.assertEqual(Order.objects.count(), 0)
 
+    def test_doordash_event_without_a_type_returns_a_fail_payload(self):
+        for event in ({"status": "NEW"}, {"type": None, "status": "NEW"},
+                      {"type": "", "status": "NEW"}, {"type": ["OrderCreate"], "status": "NEW"}):
+            with self.subTest(event=event):
+                payload = doordash_payload()
+                payload["event"] = event
+                response = self.post_doordash_payload(payload)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["order_status"], "fail")
+                self.assertEqual(Order.objects.count(), 0)
+
     def test_doordash_non_string_event_status_returns_a_fail_payload(self):
         for event_status in ([], {}, 1, None):
             with self.subTest(event_status=event_status):

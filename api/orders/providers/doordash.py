@@ -46,13 +46,17 @@ class DoorDashProvider(Provider):
         event = payload["event"]
         event_type = event.get("type")
         event_status = event.get("status")
+        # The documented envelope always has both fields. Without a type the
+        # event cannot be identified, so it is rejected rather than ignored.
+        if not isinstance(event_type, str) or not event_type.strip():
+            raise InvalidOrderPayload("event.type must be a non-empty string.")
         # A list or object cannot be looked up in the status map, so it is
         # rejected here instead of failing the lookup.
         if not isinstance(event_status, str):
             raise InvalidOrderPayload("event.status must be a string.")
         if event_type == ORDER_CREATE_EVENT and event_status in STATUS_MAP:
             return None
-        return str(event_type)
+        return event_type
 
     # A 200 is DoorDash's synchronous order confirmation, and its body is the
     # confirmation payload; any non-2xx marks the order as failed.
