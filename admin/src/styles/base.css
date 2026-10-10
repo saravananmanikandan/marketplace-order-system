@@ -151,9 +151,9 @@ pre {
   height: 16px;
 }
 
-/* Inputs and selects */
-input:not([type="checkbox"]):not([type="radio"]),
-select {
+/* Inputs and selects. :where() keeps these defaults at zero specificity,
+   so any component class can adjust them. */
+:where(input:not([type="checkbox"]):not([type="radio"]), select) {
   height: var(--control-height);
   min-width: 0;
   padding: 0 var(--space-12);
@@ -165,7 +165,7 @@ select {
   border-radius: var(--radius-control);
 }
 
-input::placeholder {
+:where(input)::placeholder {
   color: var(--muted);
 }
 

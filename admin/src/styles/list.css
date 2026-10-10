@@ -1,0 +1,298 @@
+/* Status filter pills */
+.status-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  /* Room for the focus ring, which the scrolling row would otherwise clip. */
+  padding: var(--space-4);
+  margin: 0 calc(-1 * var(--space-4)) var(--space-12);
+}
+
+.status-pill {
+  height: 32px;
+  padding: 0 var(--space-12);
+  font: inherit;
+  font-size: var(--text-14);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.status-pill:hover {
+  background: var(--row-hover);
+}
+
+.status-pill[aria-pressed="true"] {
+  color: var(--btn-text);
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+}
+
+/* Toolbar */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-12);
+  align-items: center;
+  margin-bottom: var(--space-16);
+}
+
+.field-search {
+  position: relative;
+  flex: 1 1 280px;
+  max-width: 420px;
+}
+
+.field-search .icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-12);
+  color: var(--muted);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.field-search input {
+  width: 100%;
+  padding-left: 36px;
+}
+
+.field-sort {
+  display: none;
+}
+
+/* Table card */
+.results.is-stale {
+  opacity: 0.6;
+}
+
+.table-card {
+  overflow: hidden;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.orders-table th,
+.orders-table td {
+  padding: 0 var(--space-16);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.orders-table th {
+  height: 44px;
+  font-size: var(--text-13);
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.orders-table td {
+  height: var(--row-height);
+  font-size: var(--text-14);
+  border-bottom: 1px solid var(--border);
+}
+
+.orders-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.orders-table .col-total_cents {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.orders-table .col-created_at,
+.orders-table .col-provider {
+  white-space: nowrap;
+  color: var(--muted);
+}
+
+.orders-table .col-customer_name {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+/* Wide enough for a UUID on one line; longer ids wrap inside it. */
+.orders-table td.col-external_order_id {
+  width: 320px;
+  max-width: 320px;
+}
+
+.order-row {
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.order-row:hover {
+  background: var(--row-hover);
+}
+
+.order-row:focus-visible {
+  outline-offset: -3px;
+  background: var(--row-hover);
+}
+
+.sort-button {
+  display: inline-flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4) var(--space-8);
+  margin: 0 calc(-1 * var(--space-8));
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+}
+
+.sort-button:hover,
+.sort-button.is-sorted {
+  color: var(--text);
+}
+
+.col-total_cents .sort-button {
+  flex-direction: row-reverse;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  gap: var(--space-16);
+  align-items: center;
+  justify-content: center;
+  margin-top: var(--space-24);
+}
+
+.pagination-status {
+  font-size: var(--text-14);
+  color: var(--muted);
+}
+
+/* Loading, empty and error states */
+.list-skeleton {
+  padding: var(--space-8) var(--space-16);
+}
+
+.skeleton-row {
+  display: flex;
+  gap: var(--space-24);
+  align-items: center;
+  height: var(--row-height);
+  border-bottom: 1px solid var(--border);
+}
+
+.skeleton-row:last-child {
+  border-bottom: 0;
+}
+
+.skeleton-bar {
+  height: 12px;
+  background: var(--fill-soft);
+  border-radius: var(--radius-pill);
+}
+
+.skeleton-short { width: 72px; }
+.skeleton-medium { width: 120px; }
+.skeleton-long { flex: 1; max-width: 240px; }
+
+.state-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  align-items: center;
+  padding: var(--space-48) var(--space-24);
+  text-align: center;
+  color: var(--muted);
+}
+
+.state-card[role="alert"] p {
+  color: var(--text);
+}
+
+@media (max-width: 767px) {
+  .status-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .field-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .filters .field:not(.field-search) {
+    flex: 1 1 140px;
+  }
+
+  .field-sort {
+    display: flex;
+  }
+
+  .table-card {
+    overflow: visible;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .orders-table,
+  .orders-table tbody,
+  .orders-table td {
+    display: block;
+  }
+
+  .orders-table thead {
+    display: none;
+  }
+
+  .order-row {
+    display: grid;
+    grid-template-areas:
+      "provider status"
+      "id id"
+      "customer total"
+      "time total";
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-4) var(--space-12);
+    padding: var(--space-16);
+    margin-bottom: var(--space-12);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-inner);
+  }
+
+  .orders-table td {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .orders-table td.col-external_order_id {
+    max-width: none;
+  }
+
+  .col-provider { grid-area: provider; align-self: center; }
+  .col-status { grid-area: status; justify-self: end; }
+  .col-external_order_id { grid-area: id; }
+  .col-customer_name { grid-area: customer; }
+  .col-created_at { grid-area: time; font-size: var(--text-13); }
+
+  .orders-table td.col-total_cents {
+    grid-area: total;
+    align-self: center;
+    font-size: var(--text-20);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--tracking-tight);
+  }
+}

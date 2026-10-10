@@ -1,22 +1,22 @@
 import { ASCENDING, DESCENDING } from "../constants.js";
 import { ariaSortFor, nextOrdering } from "../sorting.js";
+import { ArrowDownIcon, ArrowUpIcon } from "./Icons.jsx";
 
-const ARROWS = { [ASCENDING]: "▲", [DESCENDING]: "▼" };
+const ARROWS = { [ASCENDING]: ArrowUpIcon, [DESCENDING]: ArrowDownIcon };
 
 export default function SortableHeader({ column, ordering, onSortChange }) {
   const sortState = ariaSortFor(column, ordering);
+  const Arrow = ARROWS[sortState];
 
   return (
-    <th scope="col" aria-sort={sortState}>
+    <th scope="col" aria-sort={sortState} className={`col-${column.key}`}>
       <button
         type="button"
-        className="sort-button"
+        className={Arrow ? "sort-button is-sorted" : "sort-button"}
         onClick={() => onSortChange(nextOrdering(column, ordering))}
       >
         {column.label}
-        <span className="sort-arrow" aria-hidden="true">
-          {ARROWS[sortState] ?? ""}
-        </span>
+        {Arrow && <Arrow />}
       </button>
     </th>
   );

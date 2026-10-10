@@ -20,23 +20,21 @@ function OrderRow({ order }) {
       className="order-row"
       aria-label={`Open order ${order.external_order_id} for ${order.customer.name || "unknown customer"}`}
     >
-      <td data-label="Provider">{labelFor(PROVIDERS, order.provider)}</td>
-      <td data-label="Order ID" className="mono">
-        {order.external_order_id}
-      </td>
-      <td data-label="Customer">{order.customer.name || "—"}</td>
-      <td data-label="Status">
+      <td className="col-provider">{labelFor(PROVIDERS, order.provider)}</td>
+      <td className="col-external_order_id mono">{order.external_order_id}</td>
+      <td className="col-customer_name">{order.customer.name || "—"}</td>
+      <td className="col-status">
         <StatusBadge status={order.status} />
       </td>
-      <td data-label="Total">{formatMoney(order.total_cents, order.currency)}</td>
-      <td data-label="Time">{formatTime(order.created_at)}</td>
+      <td className="col-total_cents num">{formatMoney(order.total_cents, order.currency)}</td>
+      <td className="col-created_at">{formatTime(order.created_at)}</td>
     </tr>
   );
 }
 
 export default function OrderTable({ orders, ordering, onSortChange }) {
   return (
-    <table className="orders">
+    <table className="orders-table">
       <caption className="visually-hidden">Orders</caption>
       <thead>
         <tr>

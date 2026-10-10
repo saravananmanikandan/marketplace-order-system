@@ -53,5 +53,7 @@ export function useOrderListParams() {
 
   const clearParams = useCallback(() => setSearchParams(new URLSearchParams()), [setSearchParams]);
 
-  return { params, updateParams, clearParams };
+  const hasFilters = Boolean(params.provider || params.status || params.search);
+
+  return { params, hasFilters, updateParams, clearParams };
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { PROVIDERS, SEARCH_DEBOUNCE_MS, SORT_OPTIONS, STATUSES } from "../constants.js";
+import { PROVIDERS, SEARCH_DEBOUNCE_MS, SORT_OPTIONS } from "../constants.js";
+import { SearchIcon } from "./Icons.jsx";
 
 function Select({ label, value, options, onChange, anyLabel, className = "" }) {
   return (
     <label className={`field ${className}`.trim()}>
-      <span>{label}</span>
+      <span className="visually-hidden">{label}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {anyLabel && <option value="">{anyLabel}</option>}
         {options.map((option) => (
@@ -17,7 +18,7 @@ function Select({ label, value, options, onChange, anyLabel, className = "" }) {
   );
 }
 
-export default function OrderFilters({ params, onChange, onClear }) {
+export default function OrderFilters({ params, hasFilters, onChange, onClear }) {
   const [searchText, setSearchText] = useState(params.search);
 
   useEffect(() => {
@@ -36,11 +37,12 @@ export default function OrderFilters({ params, onChange, onClear }) {
   return (
     <form className="filters" role="search" onSubmit={(event) => event.preventDefault()}>
       <label className="field field-search">
-        <span>Search</span>
+        <span className="visually-hidden">Search</span>
+        <SearchIcon />
         <input
           type="search"
           value={searchText}
-          placeholder="Customer name or order ID"
+          placeholder="Search customer name or order ID"
           onChange={(event) => setSearchText(event.target.value)}
         />
       </label>
@@ -52,22 +54,17 @@ export default function OrderFilters({ params, onChange, onClear }) {
         onChange={(provider) => onChange({ provider })}
       />
       <Select
-        label="Status"
-        value={params.status}
-        options={STATUSES}
-        anyLabel="All statuses"
-        onChange={(status) => onChange({ status })}
-      />
-      <Select
         className="field-sort"
         label="Sort by"
         value={params.ordering}
         options={SORT_OPTIONS}
         onChange={(ordering) => onChange({ ordering })}
       />
-      <button type="button" className="button button-ghost" onClick={onClear}>
-        Clear filters
-      </button>
+      {hasFilters && (
+        <button type="button" className="button button-ghost" onClick={onClear}>
+          Clear filters
+        </button>
+      )}
     </form>
   );
 }

@@ -2,22 +2,42 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchOrders } from "../api.js";
 import OrderFilters from "../components/OrderFilters.jsx";
 import OrderTable from "../components/OrderTable.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import Pagination from "../components/Pagination.jsx";
 import RefreshNote from "../components/RefreshNote.jsx";
+import StatusPills from "../components/StatusPills.jsx";
 import { ORDERS_QUERY_KEY, REFRESH_INTERVAL_MS } from "../constants.js";
 import { formatClock } from "../format.js";
 import { useOrderListParams } from "../hooks/useOrderListParams.js";
 
-function Message({ role, children }) {
+const SKELETON_ROWS = 5;
+
+function LoadingSkeleton() {
   return (
-    <div className="message" role={role}>
+    <div className="card list-skeleton" role="status">
+      <span className="visually-hidden">Loading orders…</span>
+      {Array.from({ length: SKELETON_ROWS }, (_, index) => (
+        <div key={index} className="skeleton-row" aria-hidden="true">
+          <span className="skeleton-bar skeleton-short" />
+          <span className="skeleton-bar skeleton-long" />
+          <span className="skeleton-bar skeleton-medium" />
+          <span className="skeleton-bar skeleton-short" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StateCard({ role, children }) {
+  return (
+    <div className="card state-card" role={role}>
       {children}
     </div>
   );
 }
 
 export default function OrderListPage() {
-  const { params, updateParams, clearParams } = useOrderListParams();
+  const { params, hasFilters, updateParams, clearParams } = useOrderListParams();
 
   const { data, isPending, isError, isRefetchError, error, refetch, isPlaceholderData, dataUpdatedAt } =
     useQuery({
@@ -29,37 +49,57 @@ export default function OrderListPage() {
 
   return (
     <section aria-labelledby="orders-heading">
-      <div className="list-header">
-        <h1 id="orders-heading">Orders</h1>
-        <div className="list-status">
-          {dataUpdatedAt > 0 && <span className="muted">Updated {formatClock(dataUpdatedAt)}</span>}
-          {isRefetchError && <RefreshNote />}
-        </div>
-      </div>
-      <OrderFilters params={params} onChange={updateParams} onClear={clearParams} />
+      <PageHeader
+        title="Orders"
+        titleId="orders-heading"
+        aside={
+          <>
+            {dataUpdatedAt > 0 && <span className="muted">Updated {formatClock(dataUpdatedAt)}</span>}
+            {isRefetchError && <RefreshNote />}
+          </>
+        }
+      />
+      <StatusPills value={params.status} onChange={(status) => updateParams({ status })} />
+      <OrderFilters
+        params={params}
+        hasFilters={hasFilters}
+        onChange={updateParams}
+        onClear={clearParams}
+      />
 
-      {isPending && <Message role="status">Loading orders…</Message>}
+      {isPending && <LoadingSkeleton />}
 
       {isError && !data && (
-        <Message role="alert">
-          Could not load orders: {error.message}{" "}
+        <StateCard role="alert">
+          <p>
+            Could not load orders ({error.message.replace(/\.$/, "")}). Check that the API is
+            running, then try again.
+          </p>
           <button type="button" className="button" onClick={() => refetch()}>
             Try again
           </button>
-        </Message>
+        </StateCard>
       )}
 
       {data && data.results.length === 0 && (
-        <Message role="status">No orders match these filters.</Message>
+        <StateCard role="status">
+          <p>
+            {hasFilters
+              ? "No orders match these filters; clear them to see every order."
+              : "No orders yet; they appear here as soon as a webhook arrives."}
+          </p>
+        </StateCard>
       )}
 
       {data && data.results.length > 0 && (
         <div className={isPlaceholderData ? "results is-stale" : "results"}>
-          <OrderTable
-            orders={data.results}
-            ordering={params.ordering}
-            onSortChange={(ordering) => updateParams({ ordering })}
-          />
+          <div className="card table-card">
+            <OrderTable
+              orders={data.results}
+              ordering={params.ordering}
+              onSortChange={(ordering) => updateParams({ ordering })}
+            />
+          </div>
           <Pagination
             page={params.page}
             count={data.count}
