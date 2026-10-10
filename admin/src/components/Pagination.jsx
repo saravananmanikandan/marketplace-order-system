@@ -1,4 +1,7 @@
 export default function Pagination({ page, count, hasPrevious, hasNext, onPageChange }) {
+  // Everything fits on one page, so there is nowhere to go.
+  if (!hasPrevious && !hasNext) return null;
+
   return (
     <nav className="pagination" aria-label="Pagination">
       <button

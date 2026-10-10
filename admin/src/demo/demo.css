@@ -1,7 +1,9 @@
 /* Launcher in the sidebar's actions slot */
 .demo-launcher {
   width: 100%;
+  gap: var(--space-8);
   justify-content: space-between;
+  padding: 0 var(--space-12);
   color: var(--text);
   background: var(--surface);
   border-color: var(--border);
@@ -15,8 +17,9 @@
 .demo-tag {
   display: inline-flex;
   align-items: center;
+  flex: none;
   height: 20px;
-  padding: 0 var(--space-8);
+  padding: 0 6px;
   font-size: var(--text-12);
   font-weight: var(--weight-medium);
   color: var(--status-completed-text);
@@ -28,7 +31,9 @@
   .demo-launcher {
     width: auto;
     height: 36px;
-    padding: 0 var(--space-12);
+    gap: 6px;
+    padding: 0 10px;
+    font-size: var(--text-13);
   }
 }
 
