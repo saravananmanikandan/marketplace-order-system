@@ -3,6 +3,8 @@ import hmac
 import json
 import logging
 import re
+import urllib.error
+import urllib.request
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +50,23 @@ def require_resource_id(resource_id: Any) -> str:
     return resource_id
 
 
+def load_order_file(path: Path) -> dict[str, Any]:
+    try:
+        with open(path, encoding="utf-8") as fixture:
+            return json.load(fixture)
+    except (OSError, json.JSONDecodeError) as error:
+        raise OrderLookupError("Could not read the order fixture.") from error
+
+
+def official_order_for(resource_id: str, fixture_path: Path) -> dict[str, Any]:
+    # The official webhook and Get Order examples carry different ids, so
+    # the official order is reused under the id Uber asked for.
+    order = load_order_file(fixture_path)
+    order["id"] = resource_id
+    order["display_id"] = resource_id[-constants.UBER_DISPLAY_ID_LENGTH :]
+    return order
+
+
 class FixtureOrderClient(OrderClient):
     def __init__(
         self, fixture_path: Path | str | None = None, demo_dir: Path | str | None = None
@@ -59,13 +78,8 @@ class FixtureOrderClient(OrderClient):
         require_resource_id(resource_id)
         demo_path = self.demo_dir / f"{resource_id}.json"
         if self._is_file(demo_path):
-            return self._load(demo_path)
-        # The official webhook and Get Order examples carry different ids, so
-        # the official order is reused under the id Uber asked for.
-        order = self._load(self.fixture_path)
-        order["id"] = resource_id
-        order["display_id"] = resource_id[-constants.UBER_DISPLAY_ID_LENGTH :]
-        return order
+            return load_order_file(demo_path)
+        return official_order_for(resource_id, self.fixture_path)
 
     @staticmethod
     def _is_file(path: Path) -> bool:
@@ -74,13 +88,45 @@ class FixtureOrderClient(OrderClient):
         except OSError as error:
             raise OrderLookupError("Could not look up the order fixture.") from error
 
-    @staticmethod
-    def _load(path: Path) -> dict[str, Any]:
+
+class HttpOrderClient(OrderClient):
+    def __init__(
+        self,
+        api_base: str | None = None,
+        access_token: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> None:
+        self.api_base = (api_base or settings.UBER_API_BASE).rstrip("/")
+        self.access_token = settings.UBER_ACCESS_TOKEN if access_token is None else access_token
+        self.timeout_seconds = timeout_seconds or settings.UBER_API_TIMEOUT_SECONDS
+
+    def get_order(self, resource_id: str) -> dict[str, Any]:
+        require_resource_id(resource_id)
+        request = urllib.request.Request(
+            self.api_base + constants.UBER_GET_ORDER_PATH.format(order_id=resource_id),
+            headers={
+                constants.AUTHORIZATION_HEADER: constants.BEARER_PREFIX + self.access_token,
+                "Accept": constants.JSON_CONTENT_TYPE,
+            },
+        )
         try:
-            with open(path, encoding="utf-8") as fixture:
-                return json.load(fixture)
-        except (OSError, json.JSONDecodeError) as error:
-            raise OrderLookupError("Could not read the order fixture.") from error
+            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                body = response.read()
+        except urllib.error.HTTPError as error:
+            raise OrderLookupError(f"Uber Get Order answered HTTP {error.code}.") from error
+        except (urllib.error.URLError, OSError) as error:
+            raise OrderLookupError("Could not reach Uber Get Order.") from error
+        return self._parse(body)
+
+    @staticmethod
+    def _parse(body: bytes) -> dict[str, Any]:
+        try:
+            order = json.loads(body)
+        except ValueError as error:
+            raise OrderLookupError("Uber Get Order returned invalid JSON.") from error
+        if not isinstance(order, dict):
+            raise OrderLookupError("Uber Get Order did not return a JSON object.")
+        return order
 
 
 class UberProvider(Provider):
@@ -107,6 +153,8 @@ class UberProvider(Provider):
         self._require_order_event(payload.get("event_type"))
         resource_id = require_resource_id(payload["meta"]["resource_id"])
         order = self.order_client.get_order(resource_id)
+        if isinstance(order, dict) and order.get("id") != resource_id:
+            raise OrderLookupError("The fetched order has a different id.")
         with invalid_order_on_mapping_error():
             return self._map_order(payload, validation.require_object(order, "order"))
 

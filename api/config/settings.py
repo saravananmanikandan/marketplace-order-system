@@ -93,7 +93,13 @@ WEBHOOK_PROVIDERS = [
     "orders.providers.uber.UberProvider",
     "orders.providers.doordash.DoorDashProvider",
 ]
-UBER_ORDER_CLIENT = "orders.providers.uber.FixtureOrderClient"
+UBER_ORDER_CLIENT = os.environ.get(
+    "UBER_ORDER_CLIENT", "orders.providers.uber.FixtureOrderClient"
+).strip()
+UBER_API_BASE = os.environ.get("UBER_API_BASE", "").strip()
+UBER_ACCESS_TOKEN = os.environ.get("UBER_ACCESS_TOKEN", "").strip()
+UBER_API_TIMEOUT_SECONDS = 5
+MOCK_UBER_ENABLED = os.environ.get("MOCK_UBER_ENABLED", "false").lower() == "true"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],

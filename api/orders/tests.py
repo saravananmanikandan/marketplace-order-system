@@ -3,7 +3,10 @@ import hmac
 import json
 import os
 import re
+import socket
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import timedelta
 from pathlib import Path
 from unittest import mock
@@ -12,8 +15,8 @@ from config.settings import require_positive_int
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError, transaction
-from django.test import SimpleTestCase, TestCase, override_settings
-from django.urls import reverse
+from django.test import LiveServerTestCase, SimpleTestCase, TestCase, override_settings
+from django.urls import include, path, reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -28,7 +31,13 @@ from .providers.base import (
     Provider,
 )
 from .providers.doordash import DoorDashProvider
-from .providers.uber import STATUS_MAP, FixtureOrderClient, UberProvider
+from .providers.uber import STATUS_MAP, FixtureOrderClient, HttpOrderClient, UberProvider
+
+# Lets the live-server tests mount the Uber mock regardless of MOCK_UBER_ENABLED.
+urlpatterns = [
+    path("api/", include("orders.urls")),
+    path("mock/uber/", include("orders.mock_uber")),
+]
 
 FIXTURES_DIR = settings.REPO_ROOT / "fixtures"
 UBER_SECRET = "test-uber-secret"
@@ -286,7 +295,7 @@ WEBHOOK_SETTINGS = {
 }
 
 
-class WebhookTestCase(APITestCase):
+class WebhookClientMixin:
     def post_raw(self, body: bytes, **headers):
         return self.client.generic(
             "POST",
@@ -316,6 +325,10 @@ class WebhookTestCase(APITestCase):
             order_path.write_text(json.dumps(order))
             with override_settings(UBER_GET_ORDER_FIXTURE=order_path):
                 return self.post_uber(webhook_body)
+
+
+class WebhookTestCase(WebhookClientMixin, APITestCase):
+    pass
 
 
 @override_settings(**WEBHOOK_SETTINGS)
@@ -1023,3 +1036,73 @@ class OrderSortingTests(APITestCase):
                     for page in (1, 2, 3):
                         seen += self.names_for(ordering, page=page)
                     self.assertEqual(seen, expected)
+
+
+MOCK_UBER_TOKEN = "test-uber-access-token"
+HTTP_ORDER_CLIENT = "orders.providers.uber.HttpOrderClient"
+
+
+def closed_port() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+# The live server's static-file handler needs STATIC_URL, which the API never sets.
+@override_settings(
+    ROOT_URLCONF="orders.tests",
+    STATIC_URL="/static/",
+    UBER_ACCESS_TOKEN=MOCK_UBER_TOKEN,
+    **WEBHOOK_SETTINGS,
+)
+class HttpOrderClientTests(WebhookClientMixin, LiveServerTestCase):
+    def mock_base(self) -> str:
+        return f"{self.live_server_url}/mock/uber"
+
+    def http_client(self, access_token: str = MOCK_UBER_TOKEN) -> HttpOrderClient:
+        return HttpOrderClient(api_base=self.mock_base(), access_token=access_token)
+
+    def test_fetches_the_official_order_under_the_requested_id(self):
+        order = self.http_client().get_order("abc-123")
+        self.assertEqual(order["id"], "abc-123")
+        self.assertEqual(order["payment"]["charges"]["total"]["amount"], 1399)
+
+    def test_mock_returns_401_without_a_bearer_token(self):
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            urllib.request.urlopen(f"{self.mock_base()}/v2/eats/order/abc-123")
+        self.assertEqual(caught.exception.code, 401)
+
+    def test_rejected_token_raises_a_lookup_error(self):
+        with self.assertRaises(OrderLookupError):
+            self.http_client(access_token="wrong-token").get_order("abc-123")
+
+    def test_connection_error_raises_a_lookup_error(self):
+        client = HttpOrderClient(api_base=f"http://127.0.0.1:{closed_port()}", access_token="x")
+        with self.assertRaises(OrderLookupError):
+            client.get_order("abc-123")
+
+    def test_timeout_raises_a_lookup_error(self):
+        with mock.patch("urllib.request.urlopen", side_effect=TimeoutError):
+            with self.assertRaises(OrderLookupError):
+                self.http_client().get_order("abc-123")
+
+    def test_fetched_order_with_another_id_returns_502_and_saves_nothing(self):
+        official_response = mock.MagicMock()
+        official_response.__enter__.return_value.read.return_value = fixture_bytes(
+            "uber_get_order.json"
+        )
+        with (
+            self.settings(UBER_ORDER_CLIENT=HTTP_ORDER_CLIENT, UBER_API_BASE=self.mock_base()),
+            mock.patch("urllib.request.urlopen", return_value=official_response),
+        ):
+            response = self.post_uber()
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_webhook_is_ingested_through_the_http_client(self):
+        with self.settings(UBER_ORDER_CLIENT=HTTP_ORDER_CLIENT, UBER_API_BASE=self.mock_base()):
+            response = self.post_uber()
+        self.assertEqual(response.status_code, 200)
+        order = Order.objects.get()
+        self.assertEqual(order.external_order_id, OFFICIAL_UBER_RESOURCE_ID)
+        self.assertEqual(order.total_cents, 1399)
