@@ -60,10 +60,13 @@ def load_order_file(path: Path) -> dict[str, Any]:
 
 def official_order_for(resource_id: str, fixture_path: Path) -> dict[str, Any]:
     # The official webhook and Get Order examples carry different ids, so
-    # the official order is reused under the id Uber asked for.
+    # the official order is reused under the id Uber asked for. A reused copy
+    # stands for an order placed now, so the sample's 2019 `placed_at` (an
+    # optional field) is dropped and the received time is used instead.
     order = load_order_file(fixture_path)
     order["id"] = resource_id
     order["display_id"] = resource_id[-constants.UBER_DISPLAY_ID_LENGTH :]
+    order.pop("placed_at", None)
     return order
 
 

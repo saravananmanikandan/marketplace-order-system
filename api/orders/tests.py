@@ -195,8 +195,18 @@ class UberProviderTests(SimpleTestCase):
             },
         )
         self.assertEqual(len(data.line_items), 3)
-        self.assertEqual(data.created_at.isoformat(), "2019-05-14T15:16:54-05:00")
+        self.assertIsNone(data.created_at)
         self.assertEqual(data.raw_payload["webhook"], self.payload)
+
+    def test_placed_at_from_the_fetched_order_becomes_created_at(self):
+        class PlacedAtClient(OrderClient):
+            def get_order(self, resource_id):
+                order = json.loads(fixture_bytes("uber_get_order.json"))
+                order["id"] = resource_id
+                return order
+
+        data = UberProvider(order_client=PlacedAtClient()).build_order(self.payload)
+        self.assertEqual(data.created_at.isoformat(), "2019-05-14T15:16:54-05:00")
 
     def test_provider_state_map_covers_every_documented_state(self):
         self.assertEqual(STATUS_MAP["CREATED"], constants.STATUS_NEW)
@@ -322,14 +332,16 @@ class WebhookClientMixin:
     def post_doordash_payload(self, payload: dict):
         return self.post_doordash(json.dumps(payload).encode())
 
-    def post_uber_with_order(self, change_order, webhook_body: bytes | None = None):
+    # The edited order is served as a demo file, because demo files are read
+    # as they are, while the official fixture loses `placed_at` when reused.
+    def post_uber_with_order(self, change_order):
         order = json.loads(fixture_bytes("uber_get_order.json"))
+        order.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id=OFFICIAL_UBER_RESOURCE_ID[-5:])
         change_order(order)
         with tempfile.TemporaryDirectory() as directory:
-            order_path = Path(directory) / "order.json"
-            order_path.write_text(json.dumps(order))
-            with override_settings(UBER_GET_ORDER_FIXTURE=order_path):
-                return self.post_uber(webhook_body)
+            (Path(directory) / f"{OFFICIAL_UBER_RESOURCE_ID}.json").write_text(json.dumps(order))
+            with override_settings(UBER_DEMO_ORDERS_DIR=Path(directory)):
+                return self.post_uber()
 
 
 class WebhookTestCase(WebhookClientMixin, APITestCase):
@@ -563,7 +575,14 @@ class WebhookIngestTests(WebhookTestCase):
         )
         official_order = json.loads(fixture_bytes("uber_get_order.json"))
         official_order.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id="14636")
+        official_order.pop("placed_at")
         self.assertEqual(order.raw_payload["order"], official_order)
+
+    def test_official_sample_reused_under_an_id_gets_the_received_time(self):
+        before = timezone.now()
+        self.post_uber(uber_webhook_for("brand-new-order-1"))
+        created_at = Order.objects.get().created_at
+        self.assertTrue(before <= created_at <= timezone.now())
 
     def test_doordash_webhook_produces_one_correct_order(self):
         self.post_doordash()
@@ -867,7 +886,7 @@ class ProviderDocumentationTests(WebhookTestCase):
                 self.assertEqual(Order.objects.get().customer_name, expected)
 
     def test_uber_created_at_is_placed_at_when_present(self):
-        self.post_uber()
+        self.post_uber_with_order(lambda order: None)
         self.assertEqual(Order.objects.get().created_at.isoformat(), "2019-05-14T20:16:54+00:00")
 
     def test_uber_created_at_falls_back_to_received_time_without_placed_at(self):
@@ -924,17 +943,10 @@ class UberOrderResolutionTests(WebhookTestCase):
 
     def test_demo_orders_have_no_placed_at_so_the_demo_shows_the_received_time(self):
         paths = list(DEMO_ORDERS_DIR.glob("*.json"))
-        self.assertGreaterEqual(len(paths), 2)
+        self.assertGreaterEqual(len(paths), 1)
         for path in paths:
             with self.subTest(path=path.name):
                 self.assertNotIn("placed_at", json.loads(path.read_text()))
-
-    def test_demo_variant_of_the_official_order_only_changes_ids_and_drops_placed_at(self):
-        official = json.loads(fixture_bytes("uber_get_order.json"))
-        official.pop("placed_at")
-        official.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id=OFFICIAL_UBER_RESOURCE_ID[-5:])
-        demo_path = DEMO_ORDERS_DIR / f"{OFFICIAL_UBER_RESOURCE_ID}.json"
-        self.assertEqual(json.loads(demo_path.read_text()), official)
 
     @override_settings(UBER_DEMO_ORDERS_DIR=DEMO_ORDERS_DIR)
     def test_a_demo_order_file_named_after_the_id_is_used(self):
