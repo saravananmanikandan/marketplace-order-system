@@ -10,4 +10,6 @@ MOCK_UBER_ORDER_ROUTE = "mock/uber" + constants.UBER_GET_ORDER_PATH.replace(
 
 urlpatterns = [
     path(MOCK_UBER_ORDER_ROUTE, views.MockUberOrderView.as_view(), name="demo-mock-uber-get-order"),
+    path("api/config", views.SimulatorConfigView.as_view(), name="demo-simulator-config"),
+    path("api/send", views.SimulatorSendView.as_view(), name="demo-simulator-send"),
 ]

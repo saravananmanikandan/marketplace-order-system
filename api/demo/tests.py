@@ -1,15 +1,22 @@
+import contextlib
 import importlib
 import json
-from unittest import skipUnless
+import threading
+import urllib.request
+from unittest import mock, skipUnless
+from urllib.parse import urlsplit
 
 from django.conf import settings
+from django.db import connections
 from django.test import LiveServerTestCase, SimpleTestCase, override_settings
 from django.urls import clear_url_caches, reverse
-from rest_framework.test import APITestCase
+from rest_framework.test import APITestCase, APITransactionTestCase
 
 from orders.models import Order
+from orders.providers import ingest
 from orders.providers.base import InvalidOrderPayload
-from orders.providers.uber import HttpOrderClient
+from orders.providers.doordash import DoorDashProvider
+from orders.providers.uber import HttpOrderClient, UberProvider
 from orders.tests import (
     OFFICIAL_UBER_RESOURCE_ID,
     WEBHOOK_SETTINGS,
@@ -18,8 +25,9 @@ from orders.tests import (
     uber_webhook_for,
 )
 
-from . import staging
+from . import builders, staging
 from .clients import DEMO_ORDERS_DIR, StagedOrderClient
+from .views import SimulatorSendView, uber_headers
 
 DEMO_UBER_RESOURCE_ID = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 STAGED_ORDER_CLIENT = "demo.clients.StagedOrderClient"
@@ -158,5 +166,239 @@ class DemoSwitchTests(APITestCase):
         self.addCleanup(reload_root_urls)
         with self.settings(DEMO_ENABLED=False):
             reload_root_urls()
-            response = self.client.get("/demo/mock/uber/v2/eats/order/abc-1")
-        self.assertEqual(response.status_code, 404)
+            responses = [
+                self.client.get("/demo/mock/uber/v2/eats/order/abc-1"),
+                self.client.get("/demo/api/config"),
+                self.client.post("/demo/api/send", {"provider": "doordash"}, format="json"),
+            ]
+        self.assertEqual([response.status_code for response in responses], [404, 404, 404])
+
+
+CUSTOM_ITEMS = [
+    {"name": "Test Wrap", "quantity": 2, "unit_price_cents": 650},
+    {"name": "Test Tea", "quantity": 1, "unit_price_cents": 300},
+]
+CUSTOM_TOTAL_CENTS = 2 * 650 + 300
+TEST_CUSTOMER = {"first_name": "Test", "last_name": "Person", "phone": "+15550100"}
+
+
+def client_sender(client, lock=None):
+    """Routes the simulator's webhook calls through Django's test client."""
+
+    def send(url: str, body: bytes, headers: dict[str, str]):
+        meta = {
+            "HTTP_" + name.upper().replace("-", "_"): value
+            for name, value in headers.items()
+            if name.lower() != "content-type"
+        }
+        with lock or contextlib.nullcontext():
+            try:
+                response = client.generic(
+                    "POST", urlsplit(url).path, data=body, content_type="application/json", **meta
+                )
+            finally:
+                # A thread that is not the test's own opens its own connection.
+                if threading.current_thread() is not threading.main_thread():
+                    connections.close_all()
+        return response.status_code, response.content.decode()
+
+    return send
+
+
+class SimulatorClientMixin:
+    def send(self, sender=None, **options):
+        sender = sender or client_sender(self.client)
+        with mock.patch.object(SimulatorSendView, "sender", staticmethod(sender)):
+            return self.client.post(reverse("demo-simulator-send"), options, format="json")
+
+
+@demo_only
+@override_settings(**DEMO_SETTINGS)
+class SimulatorBuilderTests(SimpleTestCase):
+    def setUp(self):
+        staging.clear()
+
+    def build_all(self):
+        customer = builders.Customer("Test", "Person", "+15550100")
+        items = (builders.Item("Test Wrap", 2, 650),)
+        for preset in builders.PRESETS:
+            yield preset, "uber", builders.build_uber_notification(f"uber-{preset}", preset), (
+                builders.build_uber_order(f"uber-{preset}", preset, customer, items, "ACCEPTED")
+            )
+            yield preset, "doordash", builders.build_doordash_webhook(
+                f"dd-{preset}", preset, customer, items
+            ), None
+
+    def test_every_built_payload_passes_the_core_detection_and_validation(self):
+        for preset, provider_name, payload, order in self.build_all():
+            with self.subTest(preset=preset, provider=provider_name):
+                provider = ingest.find_provider(payload)
+                if provider_name == "uber":
+                    self.assertIsInstance(provider, UberProvider)
+                    staging.stage_order(payload["meta"]["resource_id"], order)
+                    provider = UberProvider(order_client=StagedOrderClient())
+                else:
+                    self.assertIsInstance(provider, DoorDashProvider)
+                provider.build_order(payload)
+
+    def test_the_uber_signature_is_accepted_by_the_core_verifier(self):
+        body = json.dumps(builders.build_uber_notification("sig-1", "random")).encode()
+        valid, _ = uber_headers(body, valid=True)
+        invalid, _ = uber_headers(body, valid=False)
+        self.assertTrue(UberProvider().authenticate(body, valid))
+        self.assertFalse(UberProvider().authenticate(body, invalid))
+
+    def test_doordash_items_stay_under_categories(self):
+        payload = builders.build_doordash_webhook(
+            "dd-1", "custom", builders.Customer(), (builders.Item("Wrap", 1, 100),)
+        )
+        self.assertNotIn("items", payload["order"])
+        self.assertEqual(payload["order"]["categories"][0]["items"][0]["name"], "Wrap")
+
+    def test_custom_uber_order_has_matching_totals_and_a_current_date(self):
+        order = builders.build_uber_order(
+            "uber-1", "custom", builders.Customer("A"), (builders.Item("Wrap", 2, 650),), "CREATED"
+        )
+        charges = order["payment"]["charges"]
+        self.assertEqual(charges["total"]["amount"], 1300)
+        self.assertEqual(charges["sub_total"]["amount"], 1300)
+        self.assertEqual(charges["tax"]["amount"], 0)
+        self.assertFalse(order["placed_at"].startswith("2019"))
+
+    def test_the_official_fixtures_are_never_changed(self):
+        paths = (builders.UBER_WEBHOOK_FIXTURE, builders.UBER_GET_ORDER_FIXTURE, builders.DOORDASH_FIXTURE)
+        before = [path.read_bytes() for path in paths]
+        list(self.build_all())
+        self.assertEqual([path.read_bytes() for path in paths], before)
+
+    def test_invalid_options_are_rejected(self):
+        cases = [
+            [],
+            {"provider": "swiggy"},
+            {"provider": "doordash", "colour": "red"},
+            {"provider": "doordash", "preset": "custom"},
+            {"provider": "doordash", "order_id": "../x"},
+            {"provider": "doordash", "deliveries": 3},
+            {"provider": "doordash", "deliveries": True},
+            {"provider": "uber_eats", "uber_state": "PREPARING"},
+            {"provider": "doordash", "auth": "maybe"},
+            {"provider": "doordash", "items": [{"name": "A", "quantity": 100, "unit_price_cents": 1}]},
+            {"provider": "doordash", "items": [{"name": "A", "quantity": 1, "unit_price_cents": 100001}]},
+            {"provider": "doordash", "items": [{"name": "A", "quantity": 1.5, "unit_price_cents": 1}]},
+            {"provider": "doordash", "items": [{"name": "", "quantity": 1, "unit_price_cents": 1}]},
+            {"provider": "doordash", "items": [{"name": "A", "quantity": 1, "unit_price_cents": 1}] * 21},
+            {"provider": "doordash", "customer": {"first_name": 5}},
+        ]
+        for options in cases:
+            with self.subTest(options=options):
+                with self.assertRaises(builders.InvalidOptions):
+                    builders.parse_options(options)
+
+
+@demo_only
+@override_settings(**DEMO_SETTINGS)
+class SimulatorEndpointTests(SimulatorClientMixin, APITestCase):
+    def setUp(self):
+        staging.clear()
+
+    def test_config_lists_the_options(self):
+        body = self.client.get(reverse("demo-simulator-config")).json()
+        self.assertTrue(body["enabled"])
+        self.assertEqual(body["presets"], ["official", "random", "custom"])
+        self.assertIn("CANCELED", body["uber_states"])
+
+    def test_a_custom_uber_order_arrives_with_the_chosen_details(self):
+        response = self.send(
+            provider="uber_eats", preset="custom", customer=TEST_CUSTOMER,
+            items=CUSTOM_ITEMS, uber_state="ACCEPTED",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["deliveries"][0]["status"], 200)
+        order = Order.objects.get()
+        self.assertEqual(order.customer_name, "Test Person")
+        self.assertEqual(order.customer_phone, "+15550100")
+        self.assertEqual(order.status, "accepted")
+        self.assertEqual(order.total_cents, CUSTOM_TOTAL_CENTS)
+        self.assertEqual([item["name"] for item in order.line_items], ["Test Wrap", "Test Tea"])
+
+    def test_a_custom_doordash_order_arrives_and_is_confirmed(self):
+        response = self.send(
+            provider="doordash", preset="custom", customer=TEST_CUSTOMER, items=CUSTOM_ITEMS
+        )
+        delivery = response.json()["deliveries"][0]
+        self.assertEqual(delivery["status"], 200)
+        self.assertIn('"order_status":"success"', delivery["body"])
+        self.assertEqual(Order.objects.get().total_cents, CUSTOM_TOTAL_CENTS)
+
+    def test_invalid_auth_gives_401_and_saves_nothing(self):
+        for provider in builders.PROVIDERS:
+            with self.subTest(provider=provider):
+                response = self.send(provider=provider, preset="random", auth="invalid")
+                self.assertEqual(response.json()["deliveries"][0]["status"], 401)
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_reusing_an_order_id_updates_the_same_row(self):
+        first = self.send(provider="doordash", preset="custom", customer=TEST_CUSTOMER, items=CUSTOM_ITEMS)
+        order_id = first.json()["order_id"]
+        self.send(
+            provider="doordash", preset="custom", order_id=order_id,
+            customer={**TEST_CUSTOMER, "first_name": "Changed"}, items=CUSTOM_ITEMS,
+        )
+        order = Order.objects.get()
+        self.assertEqual(order.external_order_id, order_id)
+        self.assertEqual(order.customer_name, "Changed Person")
+
+    def test_the_last_order_id_is_remembered_per_provider(self):
+        order_id = self.send(provider="uber_eats", preset="official").json()["order_id"]
+        config = self.client.get(reverse("demo-simulator-config")).json()
+        self.assertEqual(config["last_order_ids"], {"uber_eats": order_id})
+
+    def test_secrets_are_never_returned(self):
+        dd = self.send(provider="doordash", preset="official").json()["sent"]["headers"]
+        uber = self.send(provider="uber_eats", preset="official").json()["sent"]["headers"]
+        self.assertNotIn(settings.DOORDASH_WEBHOOK_AUTH_HEADER, json.dumps(dd))
+        self.assertTrue(dd["Authorization"].endswith("0001"))
+        self.assertIn("X-Uber-Signature", uber)
+        self.assertNotIn(settings.UBER_CLIENT_SECRET, json.dumps(uber))
+
+    def test_invalid_options_return_400(self):
+        response = self.client.post(
+            reverse("demo-simulator-send"), {"provider": "swiggy"}, format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("provider", response.json()["detail"])
+
+
+@demo_only
+@override_settings(**DEMO_SETTINGS)
+class SimulatorConcurrentDeliveryTests(SimulatorClientMixin, APITransactionTestCase):
+    def test_two_deliveries_at_once_leave_one_row_and_two_200s(self):
+        # The test client is not thread-safe, so its calls take turns here;
+        # real overlapping requests are covered by the parallel curl checks.
+        sender = client_sender(self.client, threading.Lock())
+        response = self.send(sender=sender, provider="doordash", preset="random", deliveries=2)
+        statuses = [delivery["status"] for delivery in response.json()["deliveries"]]
+        self.assertEqual(statuses, [200, 200])
+        self.assertEqual(Order.objects.count(), 1)
+
+
+# The live server's static-file handler needs STATIC_URL, which the API never sets.
+@demo_only
+@override_settings(STATIC_URL="/static/", **DEMO_SETTINGS)
+class SimulatorRealHttpTests(LiveServerTestCase):
+    def test_a_custom_uber_order_travels_over_real_http(self):
+        staging.clear()
+        options = {
+            "provider": "uber_eats", "preset": "custom",
+            "customer": TEST_CUSTOMER, "items": CUSTOM_ITEMS,
+        }
+        request = urllib.request.Request(
+            f"{self.live_server_url}/demo/api/send",
+            data=json.dumps(options).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request) as response:
+            body = json.loads(response.read())
+        self.assertEqual(body["deliveries"][0]["status"], 200)
+        self.assertEqual(Order.objects.get().total_cents, CUSTOM_TOTAL_CENTS)
