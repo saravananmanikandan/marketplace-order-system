@@ -16,7 +16,6 @@ import {
   REFRESH_INTERVAL_MS,
   STATUSES,
   labelFor,
-  nextStatus,
 } from "../constants.js";
 import { formatMoney, formatTime } from "../format.js";
 
@@ -34,7 +33,7 @@ function DebugBlock({ order }) {
 
 function AdvanceButton({ order }) {
   const queryClient = useQueryClient();
-  const upcoming = nextStatus(order.status);
+  const upcoming = order.next_status;
   // isPending only disables the button after a re-render, so a fast double
   // click could still send two requests; the ref blocks the second at once.
   const inFlight = useRef(false);

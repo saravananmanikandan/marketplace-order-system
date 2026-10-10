@@ -911,6 +911,24 @@ class StatusAdvanceTests(APITestCase):
                 order.refresh_from_db()
                 self.assertEqual(order.status, terminal)
 
+    def test_every_reply_carries_the_next_status_from_the_server_rules(self):
+        cases = {status: Order(status=status).next_status() for status in constants.STATUS_ORDER}
+        self.assertEqual(cases[constants.STATUS_NEW], constants.STATUS_ACCEPTED)
+        self.assertIsNone(cases[constants.STATUS_COMPLETED])
+        self.assertIsNone(cases[constants.STATUS_CANCELLED])
+        for status, expected in cases.items():
+            with self.subTest(status=status):
+                order = make_order(external_order_id=f"next-{status}", status=status)
+                detail = self.client.get(reverse("order-detail", args=[order.id])).data
+                listed = self.client.get(reverse("order-list"), {"status": status}).data
+                self.assertEqual(detail["next_status"], expected)
+                self.assertEqual(listed["results"][0]["next_status"], expected)
+
+    def test_the_advance_reply_carries_the_new_next_status(self):
+        response = self.advance(make_order())
+        self.assertEqual(response.data["status"], constants.STATUS_ACCEPTED)
+        self.assertEqual(response.data["next_status"], constants.STATUS_PREPARING)
+
     def test_missing_order_returns_404(self):
         response = self.client.patch(reverse("order-status", args=[999999]))
         self.assertEqual(response.status_code, 404)

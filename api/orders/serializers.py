@@ -5,6 +5,8 @@ from .models import Order
 
 class OrderListSerializer(serializers.ModelSerializer):
     customer = serializers.SerializerMethodField()
+    # The admin shows this instead of keeping its own copy of the status rules.
+    next_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -13,12 +15,16 @@ class OrderListSerializer(serializers.ModelSerializer):
             "provider",
             "external_order_id",
             "status",
+            "next_status",
             "customer",
             "total_cents",
             "currency",
             "created_at",
             "updated_at",
         ]
+
+    def get_next_status(self, order: Order) -> str | None:
+        return order.next_status()
 
     def get_customer(self, order: Order) -> dict[str, str]:
         return {
