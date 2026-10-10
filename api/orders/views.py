@@ -8,11 +8,13 @@ from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from . import constants
 from .filters import filter_orders
 from .models import Order
 from .providers import ingest
@@ -100,8 +102,13 @@ class OrderDetailView(RetrieveAPIView):
 
 class OrderStatusView(APIView):
     def patch(self, request, pk: int) -> Response:
+        expected_status = self._expected_status(request.data)
         with transaction.atomic():
             order = get_object_or_404(Order.objects.select_for_update(), pk=pk)
+            if expected_status is not None and expected_status != order.status:
+                return Response(
+                    OrderDetailSerializer(order).data, status=status.HTTP_409_CONFLICT
+                )
             next_status = order.next_status()
             if next_status is None:
                 return Response(
@@ -111,3 +118,12 @@ class OrderStatusView(APIView):
             order.status = next_status
             order.save(update_fields=["status", "updated_at"])
         return Response(OrderDetailSerializer(order).data)
+
+    @staticmethod
+    def _expected_status(data) -> str | None:
+        if not isinstance(data, dict):
+            raise ValidationError("The body must be a JSON object.")
+        expected_status = data.get(constants.EXPECTED_STATUS_FIELD)
+        if expected_status is not None and expected_status not in constants.STATUS_ORDER:
+            raise ValidationError({constants.EXPECTED_STATUS_FIELD: "Unknown status."})
+        return expected_status

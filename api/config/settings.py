@@ -10,6 +10,7 @@ REPO_ROOT = BASE_DIR.parent
 load_dotenv(REPO_ROOT / ".env")
 
 MIN_DOORDASH_AUTH_HEADER_LENGTH = 16
+SQLITE_LOCK_TIMEOUT_SECONDS = 20
 
 
 def require_env(name: str) -> str:
@@ -63,6 +64,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        # IMMEDIATE takes the write lock when a transaction starts, so two
+        # read-then-write transactions queue instead of failing with
+        # "database is locked".
+        "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": SQLITE_LOCK_TIMEOUT_SECONDS},
     }
 }
 

@@ -749,6 +749,34 @@ class StatusAdvanceTests(APITestCase):
         response = self.client.patch(reverse("order-status", args=[999999]))
         self.assertEqual(response.status_code, 404)
 
+    def advance_expecting(self, order: Order, body):
+        return self.client.patch(
+            reverse("order-status", args=[order.id]), body, format="json"
+        )
+
+    def test_stale_expected_status_returns_409_with_the_current_order(self):
+        order = make_order(status=constants.STATUS_ACCEPTED)
+        response = self.advance_expecting(order, {"expected_status": constants.STATUS_NEW})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["id"], order.id)
+        self.assertEqual(response.data["status"], constants.STATUS_ACCEPTED)
+        order.refresh_from_db()
+        self.assertEqual(order.status, constants.STATUS_ACCEPTED)
+
+    def test_matching_expected_status_moves_one_step(self):
+        order = make_order()
+        response = self.advance_expecting(order, {"expected_status": constants.STATUS_NEW})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], constants.STATUS_ACCEPTED)
+
+    def test_unknown_expected_status_or_non_object_body_returns_400(self):
+        order = make_order()
+        for body in ({"expected_status": "bogus"}, ["new"]):
+            with self.subTest(body=body):
+                self.assertEqual(self.advance_expecting(order, body).status_code, 400)
+        order.refresh_from_db()
+        self.assertEqual(order.status, constants.STATUS_NEW)
+
 
 @override_settings(**WEBHOOK_SETTINGS)
 class EndToEndFlowTests(WebhookTestCase):
