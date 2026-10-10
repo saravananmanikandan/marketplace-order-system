@@ -197,19 +197,22 @@ class UberProvider(Provider):
         return STATUS_MAP[current_state]
 
     # The Get Order docs mark `total` as optional, so its documented parts
-    # `sub_total` and `tax` stand in for it when it is missing.
+    # `sub_total`, `tax` and `total_fee` stand in for it when it is missing
+    # (the docs say `total` includes taxes and fees).
     def _total(self, charges: dict[str, Any]) -> tuple[int, str]:
         if charges.get("total") is not None:
             return self._money(charges["total"], "payment.charges.total")
         if charges.get("sub_total") is None:
             raise InvalidOrderPayload("payment.charges has neither total nor sub_total.")
         amount, currency = self._money(charges["sub_total"], "payment.charges.sub_total")
-        if charges.get("tax") is None:
-            return amount, currency
-        tax, tax_currency = self._money(charges["tax"], "payment.charges.tax")
-        if tax_currency != currency:
-            raise InvalidOrderPayload("payment.charges.tax has a different currency.")
-        return amount + tax, currency
+        for part in constants.UBER_TOTAL_PARTS:
+            if charges.get(part) is None:
+                continue
+            part_amount, part_currency = self._money(charges[part], f"payment.charges.{part}")
+            if part_currency != currency:
+                raise InvalidOrderPayload(f"payment.charges.{part} has a different currency.")
+            amount += part_amount
+        return amount, currency
 
     @staticmethod
     def _money(raw_money: Any, field: str) -> tuple[int, str]:

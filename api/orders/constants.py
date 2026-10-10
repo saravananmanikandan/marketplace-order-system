@@ -60,6 +60,8 @@ UBER_RESOURCE_ID_PATTERN = r"^[A-Za-z0-9_-]+$"
 UBER_RESOURCE_ID_MAX_LENGTH = 128
 UBER_ORDER_NOTIFICATION_EVENT = "orders.notification"
 UBER_DISPLAY_ID_LENGTH = 5
+# Added to `sub_total` when `payment.charges.total` is missing.
+UBER_TOTAL_PARTS = ("tax", "total_fee")
 UBER_GET_ORDER_PATH = "/v2/eats/order/{order_id}"
 JSON_CONTENT_TYPE = "application/json"
 BEARER_PREFIX = "Bearer "

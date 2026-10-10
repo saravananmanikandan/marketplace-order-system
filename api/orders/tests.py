@@ -592,12 +592,31 @@ class WebhookValidationTests(WebhookTestCase):
     def test_uber_300_character_resource_id_is_rejected(self):
         self.assert_rejected(self.post_uber(uber_webhook_for("a" * 300)))
 
-    def test_uber_order_without_total_uses_sub_total_plus_tax(self):
+    def test_uber_order_without_total_uses_sub_total_plus_tax_plus_total_fee(self):
         response = self.post_uber_with_order(
             lambda order: order["payment"]["charges"].pop("total")
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(Order.objects.get().total_cents, 650 + 52 + 697)
+
+    def test_uber_fallback_total_skips_parts_that_are_missing(self):
+        def keep_only_sub_total_and_tax(order):
+            for part in ("total", "total_fee"):
+                order["payment"]["charges"].pop(part)
+
+        self.post_uber_with_order(keep_only_sub_total_and_tax)
         self.assertEqual(Order.objects.get().total_cents, 650 + 52)
+
+    def test_uber_fallback_total_rejects_a_fee_in_another_currency(self):
+        def mix_currencies(order):
+            order["payment"]["charges"].pop("total")
+            order["payment"]["charges"]["total_fee"]["currency_code"] = "EUR"
+
+        self.assert_rejected(self.post_uber_with_order(mix_currencies))
+
+    def test_uber_total_is_used_as_it_is_when_present(self):
+        self.post_uber()
+        self.assertEqual(Order.objects.get().total_cents, 1399)
 
     def test_uber_order_without_total_or_sub_total_is_rejected(self):
         def drop_totals(order):
