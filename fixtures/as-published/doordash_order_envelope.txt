@@ -1,0 +1,7 @@
+{
+  "event": {
+    "type": "OrderCreate",
+    "status": "NEW"
+  },
+  "order": "<Order json object>"
+}

@@ -92,7 +92,7 @@ Webhook:
 - There is no total field. `total_cents` is `subtotal + tax`. The sample has no currency, so currency comes from settings. The only timestamp is `estimated_pickup_time`, which is a pickup estimate, so `created_at` is the time the webhook was received.
 - A 200 is a synchronous order confirmation, and its body is the confirmation payload: `{"merchant_supplied_id": "<internal order id>", "order_status": "success"}`. Invalid orders get 400 with `{"order_status": "fail", "failure_reason": "<message>"}`, because any non-2xx is treated as a failed order. Only `OrderCreate` with status `NEW` is ingested. Other events get 200 with `{"ignored": "<event type>"}`.
 
-Authentication: the order webhook carries the same authentication header as the menu status webhook. The Marketplace "Create a webhook subscription" page requires an HTTPS endpoint protected with an authentication token. The Developer Portal webhook form offers two types. "Basic": the partner enters the exact string DoorDash sends in the HTTP `Authorization` header (the portal example is `Bearer <token>`, at least 16 characters). "OAuth": client ID, client secret, token URL and optional scope. The Drive (classic) webhooks guide describes the same two types and is a supporting source only.
+Authentication: the order webhook carries the same authentication header as the menu status webhook. The Marketplace pages say only that the endpoint must be HTTPS and protected with an "authentication token" (an "Auth Token" field in the portal); they name no authentication types. Supporting evidence only: the Drive (classic) webhooks guide lists two types, "Basic Auth" (the exact contents of the HTTP `Authorization` header) and "OAuth" (client ID, client secret, token URL and optional scope), and the Developer Portal webhook form is reported to offer the same two (it needs a login and was not re-checked).
 
 Implementation supports the static header mode. `DOORDASH_WEBHOOK_AUTH_HEADER` holds the full expected `Authorization` value, and the incoming header is compared to it with `hmac.compare_digest`. OAuth mode is not implemented and is recorded in `docs/verification-notes.md`.
 
@@ -100,7 +100,7 @@ DoorDash Drive webhooks belong to a separate delivery product and are not handle
 
 ### Fixtures
 
-- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged.
+- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, and every change is listed in `docs/verification-notes.md`.
 - No fixture contains a `provider` field. Provider detection uses the payload shape only: Uber when `meta` contains `resource_id`, DoorDash when both `event` and `order` objects exist, otherwise 400.
 
 ## Testing
