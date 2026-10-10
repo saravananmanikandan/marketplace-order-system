@@ -46,6 +46,9 @@ Read only fields that appear in the official documentation or sample payloads. W
 - Money is integer cents in the backend. Formatting as currency happens only in the frontend.
 - Frontend: function components and hooks, a single `api` module for all requests, plain CSS, no component library.
 - Dependencies stay minimal. Backend: Django, djangorestframework, python-dotenv. Frontend: react, react-dom, react-router-dom, @tanstack/react-query, vite.
+- Validate every value from a webhook at the boundary. Invalid input is a 400 (or 502 for a failed upstream call), never a 500 or a stored default.
+- Never edit official provider samples except to make them valid JSON. Keep the original text beside the corrected file.
+- Every documented provider behaviour the code relies on is cited in docs/verification-notes.md with the page and section.
 
 ## Architecture
 
