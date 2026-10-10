@@ -203,11 +203,30 @@ class UberProviderTests(SimpleTestCase):
                 "quantity": 1,
                 "unit_price_cents": 350,
                 "line_total_cents": 350,
+                "notes": "",
             },
         )
         self.assertEqual(len(data.line_items), 3)
         self.assertIsNone(data.created_at)
         self.assertEqual(data.raw_payload["webhook"], self.payload)
+
+    def test_item_special_instructions_become_notes(self):
+        data = self.provider.build_order(self.payload)
+        notes = {item["name"]: item["notes"] for item in data.line_items}
+        self.assertEqual(
+            notes,
+            {"Fresh-baked muffin": "", "Coffee": "make it iced please", "Strawberry Donut": ""},
+        )
+
+    def test_item_notes_are_an_empty_string_when_not_text(self):
+        for instructions in (None, 7, True, ["make it iced"], {"text": "make it iced"}):
+            with self.subTest(special_instructions=instructions):
+                order = json.loads(fixture_bytes("uber_get_order.json"))
+                order["id"] = OFFICIAL_UBER_RESOURCE_ID
+                order["cart"]["items"][1]["special_instructions"] = instructions
+                with mock.patch.object(FixtureOrderClient, "get_order", return_value=order):
+                    data = self.provider.build_order(self.payload)
+                self.assertEqual(data.line_items[1]["notes"], "")
 
     def test_placed_at_from_the_fetched_order_becomes_created_at(self):
         class PlacedAtClient(OrderClient):
@@ -253,6 +272,23 @@ class DoorDashProviderTests(SimpleTestCase):
         self.body = fixture_bytes("doordash_order.json")
         self.payload = json.loads(self.body)
 
+    def test_the_official_sample_has_no_item_instructions_so_notes_are_empty(self):
+        data = self.provider.build_order(self.payload)
+        self.assertEqual([item["notes"] for item in data.line_items], [""])
+
+    def test_item_special_instructions_become_notes(self):
+        self.payload["order"]["categories"][0]["items"][0]["special_instructions"] = "no onions"
+        data = self.provider.build_order(self.payload)
+        self.assertEqual(data.line_items[0]["notes"], "no onions")
+
+    def test_item_notes_are_an_empty_string_when_not_text(self):
+        for instructions in (None, 7, True, ["no onions"], {"text": "no onions"}):
+            with self.subTest(special_instructions=instructions):
+                payload = json.loads(self.body)
+                payload["order"]["categories"][0]["items"][0]["special_instructions"] = instructions
+                data = self.provider.build_order(payload)
+                self.assertEqual(data.line_items[0]["notes"], "")
+
     def test_matches_only_payloads_with_event_and_order(self):
         self.assertTrue(self.provider.matches(self.payload))
         self.assertFalse(self.provider.matches({"event": {}}))
@@ -291,6 +327,7 @@ class DoorDashProviderTests(SimpleTestCase):
                     "quantity": 1,
                     "unit_price_cents": 0,
                     "line_total_cents": 0,
+                    "notes": "",
                 }
             ],
         )
@@ -703,6 +740,24 @@ class WebhookIngestTests(WebhookTestCase):
         official_order.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id="14636")
         official_order.pop("placed_at")
         self.assertEqual(order.raw_payload["order"], official_order)
+
+    def test_item_notes_are_stored_and_served_on_the_detail_endpoint(self):
+        self.post_uber()
+        self.post_doordash()
+        for provider, expected in (
+            (constants.PROVIDER_UBER, ["", "make it iced please", ""]),
+            (constants.PROVIDER_DOORDASH, [""]),
+        ):
+            with self.subTest(provider=provider):
+                order = Order.objects.get(provider=provider)
+                served = self.client.get(reverse("order-detail", args=[order.id])).json()
+                self.assertEqual([item["notes"] for item in served["line_items"]], expected)
+
+    def test_a_stored_order_whose_items_have_no_notes_key_is_still_served(self):
+        order = make_order(line_items=[{"name": "Old", "quantity": 1, "unit_price_cents": 5, "line_total_cents": 5}])
+        served = self.client.get(reverse("order-detail", args=[order.id]))
+        self.assertEqual(served.status_code, 200)
+        self.assertNotIn("notes", served.json()["line_items"][0])
 
     def test_official_sample_reused_under_an_id_gets_the_received_time(self):
         before = timezone.now()

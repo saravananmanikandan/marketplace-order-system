@@ -242,6 +242,7 @@ class UberProvider(Provider):
             "line_total_cents": UberProvider._amount(
                 price.get("total_price"), "cart.items[].price.total_price"
             ),
+            "notes": validation.item_notes(item.get("special_instructions")),
         }
 
     # `placed_at` is optional; a bad value must not cost the order, so the

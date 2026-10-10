@@ -11,6 +11,7 @@ export default function LineItems({ items, currency, totalCents }) {
             <li key={`${item.name}-${index}`} className="line-item">
               <div className="line-item-text">
                 <p className="line-item-name">{item.name}</p>
+                {item.notes ? <p className="line-item-notes">{item.notes}</p> : null}
                 <p className="muted line-item-meta num">
                   {item.quantity} × {formatMoney(item.unit_price_cents, currency)}
                 </p>

@@ -21,6 +21,12 @@ def require_list(value: Any, field: str) -> list[Any]:
     return value
 
 
+def item_notes(value: Any) -> str:
+    # Preparation notes are optional kitchen text, so a missing or non-text
+    # value must not cost the order; it becomes an empty note instead.
+    return value if isinstance(value, str) else ""
+
+
 def require_text(value: Any, field: str, max_length: int | None = None) -> str:
     if not isinstance(value, str) or not value.strip():
         raise InvalidOrderPayload(f"{field} must be a non-empty string.")

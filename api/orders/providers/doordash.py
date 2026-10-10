@@ -114,4 +114,5 @@ class DoorDashProvider(Provider):
             "quantity": quantity,
             "unit_price_cents": price,
             "line_total_cents": price * quantity,
+            "notes": validation.item_notes(item.get("special_instructions")),
         }

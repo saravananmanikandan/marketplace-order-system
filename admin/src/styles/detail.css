@@ -105,6 +105,12 @@ h2.card-label {
   overflow-wrap: anywhere;
 }
 
+.line-item-notes {
+  font-size: var(--text-14);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .line-item-meta {
   font-size: var(--text-14);
 }
