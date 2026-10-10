@@ -1,12 +1,16 @@
 import hashlib
 import hmac
 import json
+import os
 import re
 import tempfile
 from datetime import timedelta
 from pathlib import Path
+from unittest import mock
 
+from config.settings import require_positive_int
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError, transaction
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
@@ -17,7 +21,7 @@ from . import constants
 from .models import Order
 from .providers import registry
 from .providers.base import (
-    InvalidPayloadError,
+    InvalidOrderPayload,
     OrderClient,
     OrderData,
     OrderLookupError,
@@ -198,13 +202,13 @@ class UberProviderTests(SimpleTestCase):
         with self.assertRaises(OrderLookupError):
             client.get_order("anything")
 
-    def test_unusable_fetched_order_raises_a_lookup_error(self):
+    def test_unusable_fetched_order_raises_invalid_order_payload(self):
         class BrokenClient(OrderClient):
             def get_order(self, resource_id):
                 return {"id": resource_id}
 
         provider = UberProvider(order_client=BrokenClient())
-        with self.assertRaises(OrderLookupError):
+        with self.assertRaises(InvalidOrderPayload):
             provider.build_order(self.payload)
 
 
@@ -266,11 +270,11 @@ class DoorDashProviderTests(SimpleTestCase):
 
     def test_missing_fields_and_unknown_status_raise_invalid_payload(self):
         del self.payload["order"]["subtotal"]
-        with self.assertRaises(InvalidPayloadError):
+        with self.assertRaises(InvalidOrderPayload):
             self.provider.build_order(self.payload)
         self.payload = json.loads(self.body)
         self.payload["event"]["status"] = "SOMETHING_ELSE"
-        with self.assertRaises(InvalidPayloadError):
+        with self.assertRaises(InvalidOrderPayload):
             self.provider.build_order(self.payload)
 
 
@@ -300,6 +304,18 @@ class WebhookTestCase(APITestCase):
     def post_doordash(self, body: bytes | None = None, authorization: str = DOORDASH_AUTH):
         body = body if body is not None else fixture_bytes("doordash_order.json")
         return self.post_raw(body, HTTP_AUTHORIZATION=authorization)
+
+    def post_doordash_payload(self, payload: dict):
+        return self.post_doordash(json.dumps(payload).encode())
+
+    def post_uber_with_order(self, change_order, webhook_body: bytes | None = None):
+        order = json.loads(fixture_bytes("uber_get_order.json"))
+        change_order(order)
+        with tempfile.TemporaryDirectory() as directory:
+            order_path = Path(directory) / "order.json"
+            order_path.write_text(json.dumps(order))
+            with override_settings(UBER_GET_ORDER_FIXTURE=order_path):
+                return self.post_uber(webhook_body)
 
 
 @override_settings(**WEBHOOK_SETTINGS)
@@ -348,9 +364,6 @@ def doordash_payload(**order_changes) -> dict:
 
 @override_settings(**WEBHOOK_SETTINGS)
 class WebhookReplyTests(WebhookTestCase):
-    def post_doordash_payload(self, payload: dict):
-        return self.post_doordash(json.dumps(payload).encode())
-
     def test_doordash_success_returns_the_confirmation_payload(self):
         response = self.post_doordash()
         order = Order.objects.get()
@@ -389,6 +402,121 @@ class WebhookReplyTests(WebhookTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"")
         self.assertEqual(response["Content-Length"], "0")
+
+
+def doordash_item_payload(**item_changes) -> dict:
+    payload = doordash_payload()
+    payload["order"]["categories"][0]["items"][0].update(item_changes)
+    return payload
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class WebhookValidationTests(WebhookTestCase):
+    def assert_rejected(self, response):
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Order.objects.count(), 0)
+        self.assertNotIn("Error(", response.content.decode())
+
+    def test_doordash_null_id_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(id=None)))
+
+    def test_doordash_empty_id_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(id="")))
+
+    def test_doordash_300_character_id_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(id="a" * 300)))
+
+    def test_doordash_float_subtotal_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(subtotal=19.99)))
+
+    def test_doordash_bool_subtotal_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(subtotal=True)))
+
+    def test_doordash_string_quantity_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_item_payload(quantity="2")))
+
+    def test_doordash_negative_amount_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(tax=-1)))
+
+    def test_doordash_huge_amount_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(subtotal=10**20)))
+
+    def test_doordash_consumer_as_a_string_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(consumer="Kelley")))
+
+    def test_doordash_null_phone_is_stored_as_empty(self):
+        payload = doordash_payload()
+        payload["order"]["consumer"]["phone"] = None
+        self.assertEqual(self.post_doordash_payload(payload).status_code, 200)
+        self.assertEqual(Order.objects.get().customer_phone, "")
+
+    def test_uber_unknown_currency_is_rejected(self):
+        response = self.post_uber_with_order(
+            lambda order: order["payment"]["charges"]["total"].update(currency_code="usdx")
+        )
+        self.assert_rejected(response)
+
+    def test_uber_non_order_event_type_is_rejected(self):
+        payload = json.loads(fixture_bytes("uber_webhook.json"))
+        payload["event_type"] = "store.provisioned"
+        self.assert_rejected(self.post_uber(json.dumps(payload).encode()))
+
+    def test_uber_resource_id_with_a_slash_is_rejected(self):
+        self.assert_rejected(self.post_uber(uber_webhook_for("a/b")))
+
+    def test_uber_300_character_resource_id_is_rejected(self):
+        self.assert_rejected(self.post_uber(uber_webhook_for("a" * 300)))
+
+    def test_uber_order_without_total_uses_sub_total_plus_tax(self):
+        response = self.post_uber_with_order(
+            lambda order: order["payment"]["charges"].pop("total")
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Order.objects.get().total_cents, 650 + 52)
+
+    def test_uber_order_without_total_or_sub_total_is_rejected(self):
+        def drop_totals(order):
+            order["payment"]["charges"].pop("total")
+            order["payment"]["charges"].pop("sub_total")
+
+        self.assert_rejected(self.post_uber_with_order(drop_totals))
+
+    def test_uber_malformed_placed_at_falls_back_to_received_time(self):
+        before = timezone.now()
+        response = self.post_uber_with_order(lambda order: order.update(placed_at="yesterday"))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(before <= Order.objects.get().created_at <= timezone.now())
+
+    @override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=100)
+    def test_oversized_body_returns_json_413(self):
+        response = self.post_doordash()
+        self.assertEqual(response.status_code, 413)
+        self.assertEqual(response.json(), {"detail": "Request body is too large."})
+        self.assertEqual(Order.objects.count(), 0)
+
+    @override_settings(DEBUG=True)
+    def test_unexpected_error_returns_json_500(self):
+        with mock.patch("orders.views.ingest.ingest", side_effect=RuntimeError("boom")):
+            with (
+                self.assertLogs("orders.views", level="ERROR"),
+                self.assertLogs("django.request", level="ERROR"),
+            ):
+                response = self.post_doordash()
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json(), {"detail": "internal error"})
+
+
+class PageSizeSettingTests(SimpleTestCase):
+    def test_page_size_must_be_a_positive_whole_number(self):
+        for raw_value in ("0", "-3", "abc", "2.5"):
+            with self.subTest(raw_value=raw_value):
+                with mock.patch.dict(os.environ, {"PAGE_SIZE": raw_value}):
+                    with self.assertRaises(ImproperlyConfigured):
+                        require_positive_int("PAGE_SIZE")
+
+    def test_valid_page_size_is_read(self):
+        with mock.patch.dict(os.environ, {"PAGE_SIZE": "20"}):
+            self.assertEqual(require_positive_int("PAGE_SIZE"), 20)
 
 
 def find_keys(node, key: str) -> bool:
@@ -656,15 +784,6 @@ class EndToEndFlowTests(WebhookTestCase):
 
 @override_settings(**WEBHOOK_SETTINGS)
 class ProviderDocumentationTests(WebhookTestCase):
-    def post_uber_with_order(self, change_order, webhook_body: bytes | None = None):
-        order = json.loads(fixture_bytes("uber_get_order.json"))
-        change_order(order)
-        with tempfile.TemporaryDirectory() as directory:
-            order_path = Path(directory) / "order.json"
-            order_path.write_text(json.dumps(order))
-            with override_settings(UBER_GET_ORDER_FIXTURE=order_path):
-                return self.post_uber(webhook_body)
-
     def test_uber_status_comes_from_current_state_for_every_documented_value(self):
         expected = {
             "CREATED": constants.STATUS_NEW,
@@ -748,13 +867,13 @@ class UberOrderResolutionTests(WebhookTestCase):
         self.post_uber(body)
         self.assertEqual(Order.objects.filter(external_order_id="repeat-me-1").count(), 1)
 
-    def test_unsafe_resource_ids_return_502_and_save_nothing(self):
+    def test_unsafe_resource_ids_return_400_and_save_nothing(self):
         for resource_id in ("../x", "a/b", "a\\b", "has space", "new\n", "", "x.json", 42, None):
             with self.subTest(resource_id=resource_id):
                 payload = json.loads(fixture_bytes("uber_webhook.json"))
                 payload["meta"]["resource_id"] = resource_id
                 response = self.post_uber(json.dumps(payload).encode())
-                self.assertEqual(response.status_code, 502)
+                self.assertEqual(response.status_code, 400)
                 self.assertEqual(Order.objects.count(), 0)
 
     def test_a_demo_order_file_named_after_the_id_is_used(self):
@@ -771,14 +890,14 @@ class UberOrderResolutionTests(WebhookTestCase):
 
 
 class FixtureOrderClientTests(SimpleTestCase):
-    def test_ids_outside_the_allowed_pattern_raise_a_lookup_error(self):
+    def test_ids_outside_the_allowed_pattern_raise_invalid_order_payload(self):
         client = FixtureOrderClient(
             fixture_path=FIXTURES_DIR / "uber_get_order.json",
             demo_dir=FIXTURES_DIR / "demo" / "uber_orders",
         )
-        for resource_id in ("../x", "../../uber_get_order", "a/b", "", "id\n"):
+        for resource_id in ("../x", "../../uber_get_order", "a/b", "", "id\n", "a" * 129):
             with self.subTest(resource_id=resource_id):
-                with self.assertRaises(OrderLookupError):
+                with self.assertRaises(InvalidOrderPayload):
                     client.get_order(resource_id)
 
     def test_unknown_id_gets_the_official_order_with_its_own_id(self):

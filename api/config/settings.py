@@ -22,6 +22,19 @@ def require_env(name: str) -> str:
     return value
 
 
+def require_positive_int(name: str) -> int:
+    raw_value = require_env(name)
+    try:
+        value = int(raw_value)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ImproperlyConfigured(
+            f"{name} must be a positive whole number, but it is {raw_value!r}."
+        )
+    return value
+
+
 def resolve_repo_path(raw_path: str) -> Path:
     path = Path(raw_path)
     return path if path.is_absolute() else REPO_ROOT / path
@@ -69,7 +82,7 @@ if len(DOORDASH_WEBHOOK_AUTH_HEADER) < MIN_DOORDASH_AUTH_HEADER_LENGTH:
 UBER_GET_ORDER_FIXTURE = resolve_repo_path(require_env("UBER_GET_ORDER_FIXTURE"))
 UBER_DEMO_ORDERS_DIR = REPO_ROOT / "fixtures" / "demo" / "uber_orders"
 DEFAULT_CURRENCY = require_env("DEFAULT_CURRENCY")
-PAGE_SIZE = int(require_env("PAGE_SIZE"))
+PAGE_SIZE = require_positive_int("PAGE_SIZE")
 
 WEBHOOK_PROVIDERS = [
     "orders.providers.uber.UberProvider",

@@ -2,6 +2,7 @@ import json
 import logging
 
 from django.conf import settings
+from django.core.exceptions import RequestDataTooBig
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
@@ -15,7 +16,7 @@ from rest_framework.views import APIView
 from .filters import filter_orders
 from .models import Order
 from .providers import ingest
-from .providers.base import InvalidPayloadError, OrderLookupError
+from .providers.base import InvalidOrderPayload, OrderLookupError
 from .serializers import OrderDetailSerializer, OrderListSerializer
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,20 @@ class OrderWebhookView(APIView):
     permission_classes: list = []
 
     def post(self, request) -> Response:
-        raw_body = request.body
+        try:
+            raw_body = request.body
+        except RequestDataTooBig:
+            return self._error(
+                "Request body is too large.", status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            )
+        # A provider must always get JSON back, never Django's HTML error page.
+        try:
+            return self._handle(raw_body, request.headers)
+        except Exception:
+            logger.exception("Webhook handling failed")
+            return self._error("internal error", status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _handle(self, raw_body: bytes, headers) -> Response:
         payload = self._parse_json_object(raw_body)
         if payload is None:
             return self._error("Body must be a JSON object.", status.HTTP_400_BAD_REQUEST)
@@ -36,7 +50,7 @@ class OrderWebhookView(APIView):
         if provider is None:
             return self._error("Unknown payload shape.", status.HTTP_400_BAD_REQUEST)
 
-        if not provider.authenticate(raw_body, request.headers):
+        if not provider.authenticate(raw_body, headers):
             return self._error("Authentication failed.", status.HTTP_401_UNAUTHORIZED)
 
         try:
@@ -45,7 +59,7 @@ class OrderWebhookView(APIView):
                 logger.info("Ignored webhook event %s", ignored)
                 return Response({"ignored": ignored}, status=status.HTTP_200_OK)
             order = ingest.ingest(provider, payload)
-        except InvalidPayloadError as error:
+        except InvalidOrderPayload as error:
             reply = provider.rejected_reply(str(error))
         except OrderLookupError as error:
             return self._error(str(error), status.HTTP_502_BAD_GATEWAY)
@@ -57,7 +71,7 @@ class OrderWebhookView(APIView):
     def _parse_json_object(raw_body: bytes) -> dict | None:
         try:
             payload = json.loads(raw_body)
-        except ValueError:
+        except (ValueError, RecursionError):
             return None
         return payload if isinstance(payload, dict) else None
 

@@ -72,14 +72,14 @@ Webhook:
 
 The full order is then fetched with Get Order using `meta.resource_id`. In production this call needs an OAuth 2.0 bearer token with the `eats.order` or `eats.store.orders.read` scope. Fields used:
 - `id`, `display_id`, `current_state` (CREATED, ACCEPTED, DENIED, FINISHED, CANCELED, UNKNOWN)
-- `placed_at`, optional, ISO 8601 with offset. When it is missing, `created_at` is the time the webhook was received.
+- `placed_at`, optional, ISO 8601 with offset. When it is missing, malformed or has no offset, `created_at` is the time the webhook was received and the bad value is logged.
 - `eater`: `first_name`, `last_name` (the initial, only sometimes present), `phone` (anonymized) and `phone_code`
 - `cart.items[]`: `title`, `quantity`, `price.unit_price`, `price.total_price`. Prices include selected options. Modifiers are under `selected_modifier_groups` and stay in `raw_payload`.
-- `payment.charges.total`: the order total, used directly as `total_cents`. In regions where Uber remits tax, it excludes that tax.
+- `payment.charges.total`: the order total, used directly as `total_cents`. In regions where Uber remits tax, it excludes that tax. `total` is optional, so when it is missing `sub_total + tax` is used, and an order with neither `total` nor `sub_total` is a 400.
 
 Money objects are `{amount, currency_code, formatted_amount}`. `amount` is documented as an integer in the smallest currency denomination, and currency comes from `currency_code` on the total. The sample's cart item prices do not add up to `payment.charges.sub_total`, so totals are never computed from items.
 
-The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. `FixtureOrderClient` rejects a `resource_id` that does not match `^[A-Za-z0-9_-]+$` (the webhook then returns 502 and saves nothing), returns `fixtures/demo/uber_orders/<resource_id>.json` when that file exists, and otherwise returns a copy of the official Get Order fixture with `id` set to the `resource_id` and `display_id` set to its last 5 characters. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`.
+The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. The webhook is rejected with 400 before any lookup when `event_type` does not start with `orders.` or when `meta.resource_id` does not match `^[A-Za-z0-9_-]+$` or is longer than 128 characters. `FixtureOrderClient` applies the same id check, returns `fixtures/demo/uber_orders/<resource_id>.json` when that file exists, and otherwise returns a copy of the official Get Order fixture with `id` set to the `resource_id` and `display_id` set to its last 5 characters. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`.
 
 When sending the Uber fixture with curl, use `--data-binary @file`. Plain `-d @file` strips newlines, changes the body and breaks the signature.
 

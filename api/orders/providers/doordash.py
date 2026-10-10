@@ -6,7 +6,8 @@ from typing import Any
 from django.conf import settings
 
 from .. import constants
-from .base import InvalidPayloadError, OrderData, Provider, WebhookReply
+from . import validation
+from .base import OrderData, Provider, WebhookReply, invalid_order_on_mapping_error
 
 ORDER_CREATE_EVENT = "OrderCreate"
 STATUS_MAP = {
@@ -57,41 +58,47 @@ class DoorDashProvider(Provider):
         )
 
     def build_order(self, payload: dict[str, Any]) -> OrderData:
-        try:
+        with invalid_order_on_mapping_error():
             return self._map_order(payload["event"], payload["order"])
-        except KeyError as error:
-            raise InvalidPayloadError(f"Missing order field: {error.args[0]}.") from error
-        except (TypeError, ValueError) as error:
-            raise InvalidPayloadError("Invalid order field.") from error
 
     def _map_order(self, event: dict[str, Any], order: dict[str, Any]) -> OrderData:
-        consumer = order.get("consumer") or {}
+        consumer = validation.optional_object(order.get("consumer"), "order.consumer")
+        subtotal = validation.require_money(order.get("subtotal"), "order.subtotal")
+        tax = validation.require_money(order.get("tax"), "order.tax")
         return OrderData(
             provider=constants.PROVIDER_DOORDASH,
-            external_order_id=str(order["id"]),
+            external_order_id=validation.require_text(
+                order.get("id"), "order.id", constants.MAX_EXTERNAL_ID_LENGTH
+            ),
             status=STATUS_MAP[event["status"]],
-            customer_name=self._customer_name(consumer),
-            customer_phone=consumer.get("phone", ""),
-            line_items=self._line_items(order["categories"]),
-            total_cents=int(order["subtotal"]) + int(order["tax"]),
+            customer_name=validation.customer_name(consumer, "order.consumer"),
+            customer_phone=validation.customer_phone(consumer, "order.consumer"),
+            line_items=self._line_items(order.get("categories")),
+            total_cents=subtotal + tax,
             currency=settings.DEFAULT_CURRENCY,
             raw_payload={"event": event, "order": order},
         )
 
     @staticmethod
-    def _customer_name(consumer: dict[str, Any]) -> str:
-        parts = [consumer.get("first_name", ""), consumer.get("last_name", "")]
-        return " ".join(part for part in parts if part)
+    def _line_items(raw_categories: Any) -> list[dict[str, Any]]:
+        categories = validation.require_list(raw_categories, "order.categories")
+        return [
+            DoorDashProvider._line_item(item)
+            for category in categories
+            for item in validation.require_list(
+                validation.require_object(category, "order.categories[]").get("items"),
+                "order.categories[].items",
+            )
+        ]
 
     @staticmethod
-    def _line_items(categories: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        return [
-            {
-                "name": item["name"],
-                "quantity": item["quantity"],
-                "unit_price_cents": int(item["price"]),
-                "line_total_cents": int(item["price"]) * int(item["quantity"]),
-            }
-            for category in categories
-            for item in category["items"]
-        ]
+    def _line_item(raw_item: Any) -> dict[str, Any]:
+        item = validation.require_object(raw_item, "item")
+        price = validation.require_money(item.get("price"), "item.price")
+        quantity = validation.require_quantity(item.get("quantity"), "item.quantity")
+        return {
+            "name": validation.require_text(item.get("name"), "item.name"),
+            "quantity": quantity,
+            "unit_price_cents": price,
+            "line_total_cents": price * quantity,
+        }

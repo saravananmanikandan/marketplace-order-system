@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from http import HTTPStatus
@@ -10,8 +11,19 @@ class OrderLookupError(Exception):
     """The provider's order could not be fetched, so nothing can be saved."""
 
 
-class InvalidPayloadError(Exception):
-    """The webhook payload is missing fields the provider documents as present."""
+class InvalidOrderPayload(Exception):
+    """The order data is missing or invalid, so a retry cannot fix it."""
+
+
+MAPPING_ERRORS = (KeyError, TypeError, ValueError, AttributeError, OverflowError)
+
+
+@contextmanager
+def invalid_order_on_mapping_error() -> Iterator[None]:
+    try:
+        yield
+    except MAPPING_ERRORS as error:
+        raise InvalidOrderPayload("The order has a missing or invalid field.") from error
 
 
 @dataclass(frozen=True)
