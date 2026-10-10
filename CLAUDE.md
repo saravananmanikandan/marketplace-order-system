@@ -71,7 +71,7 @@ Webhook:
 - After acknowledging, the integration must call accept or deny within 11.5 minutes or the order auto-cancels. That is an outbound call, so it is not implemented and is recorded in the going-live list.
 
 The full order is then fetched with Get Order using `meta.resource_id`. In production this call needs an OAuth 2.0 bearer token with the `eats.order` or `eats.store.orders.read` scope. Fields used:
-- `id`, `display_id`, `current_state` (CREATED, ACCEPTED, DENIED, FINISHED, CANCELED, UNKNOWN)
+- `id`, `current_state` (CREATED, ACCEPTED, DENIED, FINISHED, CANCELED, UNKNOWN)
 - `placed_at`, optional, ISO 8601 with offset. When it is missing, malformed or has no offset, `created_at` is the time the webhook was received and the bad value is logged.
 - `eater`: `first_name`, `last_name` (the initial, only sometimes present), `phone` (anonymized) and `phone_code`
 - `cart.items[]`: `title`, `quantity`, `price.unit_price`, `price.total_price`. Prices include selected options. Modifiers are under `selected_modifier_groups` and stay in `raw_payload`.
@@ -79,7 +79,7 @@ The full order is then fetched with Get Order using `meta.resource_id`. In produ
 
 Money objects are `{amount, currency_code, formatted_amount}`. `amount` is documented as an integer in the smallest currency denomination, and currency comes from `currency_code` on the total. The sample's cart item prices do not add up to `payment.charges.sub_total`, so totals are never computed from items.
 
-The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. The webhook is rejected with 400 before any lookup when `event_type` does not start with `orders.` or when `meta.resource_id` does not match `^[A-Za-z0-9_-]+$` or is longer than 128 characters. `FixtureOrderClient` applies the same id check and returns a copy of the official Get Order fixture with `id` set to the `resource_id`, `display_id` set to its last 5 characters and the sample's 2019 `placed_at` removed, so the copy is stamped with the received time. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`.
+The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. After the signature check, an event whose `event_type` is not `orders.notification` is acknowledged with an empty 200 and creates nothing. The webhook is rejected with 400 before any lookup when `meta.resource_id` does not match `^[A-Za-z0-9_-]+$` or is longer than 128 characters. `FixtureOrderClient` applies the same id check and returns a copy of the official Get Order fixture with `id` set to the `resource_id`, `display_id` set to its last 5 characters and the sample's 2019 `placed_at` removed, so the copy is stamped with the received time. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`.
 
 When sending the Uber fixture with curl, use `--data-binary @file`. Plain `-d @file` strips newlines, changes the body and breaks the signature.
 
@@ -87,7 +87,7 @@ When sending the Uber fixture with curl, use `--data-binary @file`. Plain `-d @f
 
 Webhook:
 - POST with `{ "event": { "type", "status" }, "order": { ... } }`. The full order is in the webhook and no second call is needed. Order-create events have status `NEW`.
-- `order` fields used: `id`, `consumer` (`first_name`, `last_name`, `phone`, `email`, `id`), `categories[].items[]` (`name`, `price`, `quantity`, `extras[]`), `subtotal`, `tax`. Items are nested under categories. Modifiers are under `extras[].options[]` and stay in `raw_payload`. `tip_amount` is the delivery tip and is only sent for self-delivery orders. `merchant_tip_amount` is the tip for merchant staff. Neither is part of the total.
+- `order` fields used: `id`, `consumer` (`first_name`, `last_name`, `phone`, `id`), `categories[].items[]` (`name`, `price`, `quantity`, `extras[]`), `subtotal`, `tax`. Items are nested under categories. Modifiers are under `extras[].options[]` and stay in `raw_payload`. `tip_amount` is the delivery tip and is only sent for self-delivery orders. `merchant_tip_amount` is the tip for merchant staff. Neither is part of the total.
 - `subtotal` and `tax` are documented as integers without a stated unit. The sample values (2000 and 300) read as cents, so they are treated as cents, and this is recorded as an assumption. The sample's item prices are 0 while `subtotal` is 2000, so totals are never computed from items.
 - There is no total field. `total_cents` is `subtotal + tax`. The sample has no currency, so currency comes from settings. The only timestamp is `estimated_pickup_time`, which is a pickup estimate, so `created_at` is the time the webhook was received.
 - A 200 is a synchronous order confirmation, and its body is the confirmation payload: `{"merchant_supplied_id": "<internal order id>", "order_status": "success"}`. Invalid orders get 400 with `{"order_status": "fail", "failure_reason": "<message>"}`, because any non-2xx is treated as a failed order. Only `OrderCreate` with status `NEW` is ingested. Other events get 200 with `{"ignored": "<event type>"}`.
