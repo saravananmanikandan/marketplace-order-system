@@ -340,6 +340,57 @@ class WebhookAuthTests(WebhookTestCase):
         self.assert_rejected(self.post_doordash(authorization="Bearer"))
 
 
+def doordash_payload(**order_changes) -> dict:
+    payload = json.loads(fixture_bytes("doordash_order.json"))
+    payload["order"].update(order_changes)
+    return payload
+
+
+@override_settings(**WEBHOOK_SETTINGS)
+class WebhookReplyTests(WebhookTestCase):
+    def post_doordash_payload(self, payload: dict):
+        return self.post_doordash(json.dumps(payload).encode())
+
+    def test_doordash_success_returns_the_confirmation_payload(self):
+        response = self.post_doordash()
+        order = Order.objects.get()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"merchant_supplied_id": str(order.id), "order_status": "success"},
+        )
+
+    def test_doordash_invalid_payload_returns_a_fail_payload(self):
+        payload = doordash_payload()
+        del payload["order"]["subtotal"]
+        response = self.post_doordash_payload(payload)
+        self.assertEqual(response.status_code, 400)
+        body = response.json()
+        self.assertEqual(body["order_status"], "fail")
+        self.assertNotIn("Error(", body["failure_reason"])
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_doordash_other_event_types_and_statuses_are_ignored(self):
+        cases = [
+            ({"type": "OrderCancel", "status": "NEW"}, "OrderCancel"),
+            ({"type": "OrderCreate", "status": "CANCELLED"}, "OrderCreate"),
+        ]
+        for event, ignored in cases:
+            with self.subTest(event=event):
+                payload = doordash_payload()
+                payload["event"] = event
+                response = self.post_doordash_payload(payload)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json(), {"ignored": ignored})
+                self.assertEqual(Order.objects.count(), 0)
+
+    def test_uber_still_returns_an_empty_200(self):
+        response = self.post_uber()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"")
+        self.assertEqual(response["Content-Length"], "0")
+
+
 def find_keys(node, key: str) -> bool:
     if isinstance(node, dict):
         return key in node or any(find_keys(value, key) for value in node.values())

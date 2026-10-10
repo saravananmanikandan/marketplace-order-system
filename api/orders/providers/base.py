@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
+from http import HTTPStatus
 from typing import Any
 
 
@@ -27,6 +28,12 @@ class OrderData:
     created_at: datetime | None = field(default=None)
 
 
+@dataclass(frozen=True)
+class WebhookReply:
+    status: int
+    body: dict[str, Any] | None = None
+
+
 class Provider(ABC):
     @abstractmethod
     def matches(self, payload: dict[str, Any]) -> bool:
@@ -39,6 +46,16 @@ class Provider(ABC):
     @abstractmethod
     def build_order(self, payload: dict[str, Any]) -> OrderData:
         """Turn the webhook payload into the internal order fields."""
+
+    def ignored_event(self, payload: dict[str, Any]) -> str | None:
+        """Return the event type when the event is not an order to ingest."""
+        return None
+
+    def accepted_reply(self, order_id: int) -> WebhookReply:
+        return WebhookReply(HTTPStatus.OK)
+
+    def rejected_reply(self, message: str) -> WebhookReply:
+        return WebhookReply(HTTPStatus.BAD_REQUEST, {"detail": message})
 
 
 class OrderClient(ABC):

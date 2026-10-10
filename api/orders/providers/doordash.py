@@ -1,15 +1,19 @@
 import hmac
 from collections.abc import Mapping
+from http import HTTPStatus
 from typing import Any
 
 from django.conf import settings
 
 from .. import constants
-from .base import InvalidPayloadError, OrderData, Provider
+from .base import InvalidPayloadError, OrderData, Provider, WebhookReply
 
+ORDER_CREATE_EVENT = "OrderCreate"
 STATUS_MAP = {
     "NEW": constants.STATUS_NEW,
 }
+ORDER_STATUS_SUCCESS = "success"
+ORDER_STATUS_FAIL = "fail"
 
 
 class DoorDashProvider(Provider):
@@ -31,11 +35,34 @@ class DoorDashProvider(Provider):
             self.expected_authorization.encode(), provided.encode()
         )
 
+    def ignored_event(self, payload: dict[str, Any]) -> str | None:
+        event = payload["event"]
+        event_type = event.get("type")
+        if event_type == ORDER_CREATE_EVENT and event.get("status") in STATUS_MAP:
+            return None
+        return str(event_type)
+
+    # A 200 is DoorDash's synchronous order confirmation, and its body is the
+    # confirmation payload; any non-2xx marks the order as failed.
+    def accepted_reply(self, order_id: int) -> WebhookReply:
+        return WebhookReply(
+            HTTPStatus.OK,
+            {"merchant_supplied_id": str(order_id), "order_status": ORDER_STATUS_SUCCESS},
+        )
+
+    def rejected_reply(self, message: str) -> WebhookReply:
+        return WebhookReply(
+            HTTPStatus.BAD_REQUEST,
+            {"order_status": ORDER_STATUS_FAIL, "failure_reason": message},
+        )
+
     def build_order(self, payload: dict[str, Any]) -> OrderData:
         try:
             return self._map_order(payload["event"], payload["order"])
-        except (KeyError, TypeError, ValueError) as error:
-            raise InvalidPayloadError(f"Unusable DoorDash order: {error!r}") from error
+        except KeyError as error:
+            raise InvalidPayloadError(f"Missing order field: {error.args[0]}.") from error
+        except (TypeError, ValueError) as error:
+            raise InvalidPayloadError("Invalid order field.") from error
 
     def _map_order(self, event: dict[str, Any], order: dict[str, Any]) -> OrderData:
         consumer = order.get("consumer") or {}

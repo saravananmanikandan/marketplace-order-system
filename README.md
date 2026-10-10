@@ -194,6 +194,8 @@ curl -i -X POST http://localhost:8000/api/webhooks/orders \
 EOF
 ```
 
+DoorDash answers `200` with the order confirmation, for example `{"merchant_supplied_id": "2", "order_status": "success"}`. The id is the internal order id.
+
 To send another order, change `order.id`. Or use the script: `scripts/send_doordash_webhook.sh my-doordash-order-1`.
 
 ### More orders

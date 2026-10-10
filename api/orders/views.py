@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django.conf import settings
 from django.db import transaction
@@ -16,6 +17,8 @@ from .models import Order
 from .providers import ingest
 from .providers.base import InvalidPayloadError, OrderLookupError
 from .serializers import OrderDetailSerializer, OrderListSerializer
+
+logger = logging.getLogger(__name__)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
@@ -37,12 +40,18 @@ class OrderWebhookView(APIView):
             return self._error("Authentication failed.", status.HTTP_401_UNAUTHORIZED)
 
         try:
-            ingest.ingest(provider, payload)
+            ignored = provider.ignored_event(payload)
+            if ignored is not None:
+                logger.info("Ignored webhook event %s", ignored)
+                return Response({"ignored": ignored}, status=status.HTTP_200_OK)
+            order = ingest.ingest(provider, payload)
         except InvalidPayloadError as error:
-            return self._error(str(error), status.HTTP_400_BAD_REQUEST)
+            reply = provider.rejected_reply(str(error))
         except OrderLookupError as error:
             return self._error(str(error), status.HTTP_502_BAD_GATEWAY)
-        return Response(status=status.HTTP_200_OK)
+        else:
+            reply = provider.accepted_reply(order.id)
+        return Response(reply.body, status=reply.status)
 
     @staticmethod
     def _parse_json_object(raw_body: bytes) -> dict | None:
