@@ -4,8 +4,8 @@ Marketplace orders from Uber Eats and DoorDash arrive through one webhook endpoi
 
 ## Layout
 
-- `api/` Django and Django REST Framework, app `orders`, SQLite
-- `admin/` React and Vite admin interface
+- `api/` Django and Django REST Framework, app `orders`, SQLite; `api/demo/` is the demo-only app
+- `admin/` React and Vite admin interface; `admin/src/demo/` is the demo-only UI
 - `fixtures/` official provider sample payloads, `fixtures/demo/` demo variants
 - `scripts/` helpers that send the sample webhooks to a running server
 - `docs/` design decisions and documentation verification notes
@@ -103,9 +103,19 @@ DoorDash Drive webhooks belong to a separate delivery product and are not handle
 - Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, and every change is listed in `docs/verification-notes.md`.
 - No fixture contains a `provider` field. Provider detection uses the payload shape only: Uber when `meta` contains `resource_id`, DoorDash when both `event` and `order` objects exist, otherwise 400.
 
+## Demo-only code
+
+The webhook simulator and the Uber Get Order mock exist only to ease the reviewer's demo. They are kept apart so the assignment code can be read on its own.
+
+1. Demo code lives only in `api/demo/`, `admin/src/demo/` and `fixtures/demo/` (plus `scripts/seed_demo.sh`). Nothing else holds demo logic.
+2. Dependencies go one way: the demo imports from the core, the core never imports from the demo. `grep -rn "demo" api/orders` returns nothing, and in `admin/src` outside `admin/src/demo` the only match is the single lazy import in `App.jsx`.
+3. The core's only touchpoints are the `DEMO_ENABLED` block in `api/config/settings.py`, the conditional include in `api/config/urls.py`, the lazy `DemoLauncher` import in the top bar slot of `admin/src/App.jsx`, the `/demo/api` entry in the `admin/vite.config.js` proxy, and the demo lines in `.env.example`.
+4. The demo is off in code by default (`DEMO_ENABLED` false). `.env.example` turns it on for the reviewer's `cp .env.example .env` setup, with a comment on how to turn it off.
+5. Deleting `api/demo/`, `admin/src/demo/` and the touchpoints must leave a working core: the backend tests and the admin build pass. Check this in a temporary copy, never in the working tree.
+
 ## Testing
 
-All backend tests live in `api/orders/tests.py` and run with `python manage.py test`. Webhook tests post raw bytes, for example `self.client.generic("POST", url, data=body_bytes, content_type="application/json", ...)`, because re-serializing the body changes the bytes and invalidates the Uber signature. New behaviour ships with tests.
+All backend tests live in `api/orders/tests.py` and run with `python manage.py test`. The one exception is the demo app: its tests live in `api/demo/tests.py` and are skipped unless `DEMO_ENABLED` is true. Webhook tests post raw bytes, for example `self.client.generic("POST", url, data=body_bytes, content_type="application/json", ...)`, because re-serializing the body changes the bytes and invalidates the Uber signature. New behaviour ships with tests.
 
 ## Git conventions
 
