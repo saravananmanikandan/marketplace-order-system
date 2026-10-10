@@ -85,7 +85,6 @@ if len(DOORDASH_WEBHOOK_AUTH_HEADER) < MIN_DOORDASH_AUTH_HEADER_LENGTH:
     )
 
 UBER_GET_ORDER_FIXTURE = resolve_repo_path(require_env("UBER_GET_ORDER_FIXTURE"))
-UBER_DEMO_ORDERS_DIR = REPO_ROOT / "fixtures" / "demo" / "uber_orders"
 DEFAULT_CURRENCY = require_env("DEFAULT_CURRENCY")
 PAGE_SIZE = require_positive_int("PAGE_SIZE")
 
@@ -99,7 +98,15 @@ UBER_ORDER_CLIENT = os.environ.get(
 UBER_API_BASE = os.environ.get("UBER_API_BASE", "").strip()
 UBER_ACCESS_TOKEN = os.environ.get("UBER_ACCESS_TOKEN", "").strip()
 UBER_API_TIMEOUT_SECONDS = 5
-MOCK_UBER_ENABLED = os.environ.get("MOCK_UBER_ENABLED", "false").lower() == "true"
+
+# Demo-only tools live in api/demo/ and are loaded only when this is true.
+DEMO_ENABLED = os.environ.get("DEMO_ENABLED", "false").lower() == "true"
+if DEMO_ENABLED:
+    INSTALLED_APPS.append("demo")
+elif UBER_ORDER_CLIENT.startswith("demo."):
+    raise ImproperlyConfigured(
+        "UBER_ORDER_CLIENT points at the demo app, but DEMO_ENABLED is not true."
+    )
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],

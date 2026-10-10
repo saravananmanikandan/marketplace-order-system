@@ -1,14 +1,14 @@
 import hmac
 
 from django.conf import settings
-from django.urls import path
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from . import constants
-from .providers.base import InvalidOrderPayload, OrderLookupError
-from .providers.uber import official_order_for, require_resource_id
+from orders import constants
+from orders.providers.base import InvalidOrderPayload, OrderLookupError
+
+from .clients import StagedOrderClient
 
 
 class MockUberOrderView(APIView):
@@ -19,9 +19,7 @@ class MockUberOrderView(APIView):
         if not self._has_valid_token(request.headers.get(constants.AUTHORIZATION_HEADER, "")):
             return Response({"detail": "Unauthorized."}, status=status.HTTP_401_UNAUTHORIZED)
         try:
-            order = official_order_for(
-                require_resource_id(order_id), settings.UBER_GET_ORDER_FIXTURE
-            )
+            order = StagedOrderClient().get_order(order_id)
         except InvalidOrderPayload:
             return Response({"detail": "Order not found."}, status=status.HTTP_404_NOT_FOUND)
         except OrderLookupError as error:
@@ -34,12 +32,3 @@ class MockUberOrderView(APIView):
             return False
         expected = constants.BEARER_PREFIX + settings.UBER_ACCESS_TOKEN
         return hmac.compare_digest(expected.encode(), provided.encode())
-
-
-urlpatterns = [
-    path(
-        constants.UBER_GET_ORDER_PATH.lstrip("/").replace("{order_id}", "<str:order_id>"),
-        MockUberOrderView.as_view(),
-        name="mock-uber-get-order",
-    ),
-]

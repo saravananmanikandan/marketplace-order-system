@@ -71,25 +71,11 @@ def official_order_for(resource_id: str, fixture_path: Path) -> dict[str, Any]:
 
 
 class FixtureOrderClient(OrderClient):
-    def __init__(
-        self, fixture_path: Path | str | None = None, demo_dir: Path | str | None = None
-    ) -> None:
+    def __init__(self, fixture_path: Path | str | None = None) -> None:
         self.fixture_path = Path(fixture_path or settings.UBER_GET_ORDER_FIXTURE)
-        self.demo_dir = Path(demo_dir or settings.UBER_DEMO_ORDERS_DIR)
 
     def get_order(self, resource_id: str) -> dict[str, Any]:
-        require_resource_id(resource_id)
-        demo_path = self.demo_dir / f"{resource_id}.json"
-        if self._is_file(demo_path):
-            return load_order_file(demo_path)
-        return official_order_for(resource_id, self.fixture_path)
-
-    @staticmethod
-    def _is_file(path: Path) -> bool:
-        try:
-            return path.is_file()
-        except OSError as error:
-            raise OrderLookupError("Could not look up the order fixture.") from error
+        return official_order_for(require_resource_id(resource_id), self.fixture_path)
 
 
 class HttpOrderClient(OrderClient):

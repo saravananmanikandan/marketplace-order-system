@@ -5,5 +5,5 @@ urlpatterns = [
     path("api/", include("orders.urls")),
 ]
 
-if settings.MOCK_UBER_ENABLED:
-    urlpatterns.append(path("mock/uber/", include("orders.mock_uber")))
+if settings.DEMO_ENABLED:
+    urlpatterns.append(path("demo/", include("demo.urls")))

@@ -5,9 +5,9 @@ import os
 import re
 import socket
 import tempfile
-import urllib.error
-import urllib.request
+import threading
 from datetime import timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
@@ -15,8 +15,8 @@ from config.settings import require_positive_int
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError, transaction
-from django.test import LiveServerTestCase, SimpleTestCase, TestCase, override_settings
-from django.urls import include, path, reverse
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
@@ -33,16 +33,8 @@ from .providers.base import (
 from .providers.doordash import DoorDashProvider
 from .providers.uber import STATUS_MAP, FixtureOrderClient, HttpOrderClient, UberProvider
 
-# Lets the live-server tests mount the Uber mock regardless of MOCK_UBER_ENABLED.
-urlpatterns = [
-    path("api/", include("orders.urls")),
-    path("mock/uber/", include("orders.mock_uber")),
-]
-
 FIXTURES_DIR = settings.REPO_ROOT / "fixtures"
-DEMO_ORDERS_DIR = FIXTURES_DIR / "demo" / "uber_orders"
-# Tests read the unmodified official Get Order fixture unless they opt into the demo files.
-NO_DEMO_ORDERS_DIR = FIXTURES_DIR / "demo" / "no-demo-orders"
+FIXTURE_ORDER_CLIENT = "orders.providers.uber.FixtureOrderClient"
 UBER_SECRET = "test-uber-secret"
 DOORDASH_AUTH = "Bearer test-doordash-token-0001"
 
@@ -52,7 +44,6 @@ def fixture_bytes(name: str) -> bytes:
 
 
 OFFICIAL_UBER_RESOURCE_ID = "153dd7f1-339d-4619-940c-418943c14636"
-DEMO_UBER_RESOURCE_ID = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 
 
 def uber_webhook_for(resource_id: str) -> bytes:
@@ -147,7 +138,7 @@ class RegistryTests(SimpleTestCase):
 @override_settings(
     UBER_CLIENT_SECRET=UBER_SECRET,
     UBER_GET_ORDER_FIXTURE=FIXTURES_DIR / "uber_get_order.json",
-    UBER_DEMO_ORDERS_DIR=NO_DEMO_ORDERS_DIR,
+    UBER_ORDER_CLIENT=FIXTURE_ORDER_CLIENT,
 )
 class UberProviderTests(SimpleTestCase):
     def setUp(self):
@@ -305,7 +296,8 @@ WEBHOOK_SETTINGS = {
     "UBER_CLIENT_SECRET": UBER_SECRET,
     "DOORDASH_WEBHOOK_AUTH_HEADER": DOORDASH_AUTH,
     "UBER_GET_ORDER_FIXTURE": FIXTURES_DIR / "uber_get_order.json",
-    "UBER_DEMO_ORDERS_DIR": NO_DEMO_ORDERS_DIR,
+    # Pinned so the core tests never depend on the order client chosen in .env.
+    "UBER_ORDER_CLIENT": FIXTURE_ORDER_CLIENT,
     "DEFAULT_CURRENCY": "USD",
 }
 
@@ -332,16 +324,14 @@ class WebhookClientMixin:
     def post_doordash_payload(self, payload: dict):
         return self.post_doordash(json.dumps(payload).encode())
 
-    # The edited order is served as a demo file, because demo files are read
-    # as they are, while the official fixture loses `placed_at` when reused.
+    # The client is patched to return the edited order as it is, because the
+    # official fixture loses `placed_at` when it is reused under another id.
     def post_uber_with_order(self, change_order):
         order = json.loads(fixture_bytes("uber_get_order.json"))
         order.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id=OFFICIAL_UBER_RESOURCE_ID[-5:])
         change_order(order)
-        with tempfile.TemporaryDirectory() as directory:
-            (Path(directory) / f"{OFFICIAL_UBER_RESOURCE_ID}.json").write_text(json.dumps(order))
-            with override_settings(UBER_DEMO_ORDERS_DIR=Path(directory)):
-                return self.post_uber()
+        with mock.patch.object(FixtureOrderClient, "get_order", return_value=order):
+            return self.post_uber()
 
 
 class WebhookTestCase(WebhookClientMixin, APITestCase):
@@ -941,21 +931,6 @@ class UberOrderResolutionTests(WebhookTestCase):
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(Order.objects.count(), 0)
 
-    def test_demo_orders_have_no_placed_at_so_the_demo_shows_the_received_time(self):
-        paths = list(DEMO_ORDERS_DIR.glob("*.json"))
-        self.assertGreaterEqual(len(paths), 1)
-        for path in paths:
-            with self.subTest(path=path.name):
-                self.assertNotIn("placed_at", json.loads(path.read_text()))
-
-    @override_settings(UBER_DEMO_ORDERS_DIR=DEMO_ORDERS_DIR)
-    def test_a_demo_order_file_named_after_the_id_is_used(self):
-        self.post_uber(uber_webhook_for(DEMO_UBER_RESOURCE_ID))
-        order = Order.objects.get()
-        self.assertEqual(order.external_order_id, DEMO_UBER_RESOURCE_ID)
-        self.assertEqual(order.customer_name, "Priya S.")
-        self.assertEqual(order.total_cents, 1099)
-
     def test_the_official_fixture_file_is_never_modified(self):
         before = fixture_bytes("uber_get_order.json")
         self.post_uber(uber_webhook_for("some-other-id"))
@@ -964,20 +939,14 @@ class UberOrderResolutionTests(WebhookTestCase):
 
 class FixtureOrderClientTests(SimpleTestCase):
     def test_ids_outside_the_allowed_pattern_raise_invalid_order_payload(self):
-        client = FixtureOrderClient(
-            fixture_path=FIXTURES_DIR / "uber_get_order.json",
-            demo_dir=DEMO_ORDERS_DIR,
-        )
+        client = FixtureOrderClient(fixture_path=FIXTURES_DIR / "uber_get_order.json")
         for resource_id in ("../x", "../../uber_get_order", "a/b", "", "id\n", "a" * 129):
             with self.subTest(resource_id=resource_id):
                 with self.assertRaises(InvalidOrderPayload):
                     client.get_order(resource_id)
 
     def test_unknown_id_gets_the_official_order_with_its_own_id(self):
-        client = FixtureOrderClient(
-            fixture_path=FIXTURES_DIR / "uber_get_order.json",
-            demo_dir=DEMO_ORDERS_DIR,
-        )
+        client = FixtureOrderClient(fixture_path=FIXTURES_DIR / "uber_get_order.json")
         order = client.get_order("abc-123-XYZ")
         self.assertEqual((order["id"], order["display_id"]), ("abc-123-XYZ", "3-XYZ"))
 
@@ -1070,7 +1039,7 @@ class OrderSortingTests(APITestCase):
                     self.assertEqual(seen, expected)
 
 
-MOCK_UBER_TOKEN = "test-uber-access-token"
+STUB_UBER_TOKEN = "test-uber-access-token"
 HTTP_ORDER_CLIENT = "orders.providers.uber.HttpOrderClient"
 
 
@@ -1080,29 +1049,51 @@ def closed_port() -> int:
         return probe.getsockname()[1]
 
 
-# The live server's static-file handler needs STATIC_URL, which the API never sets.
-@override_settings(
-    ROOT_URLCONF="orders.tests",
-    STATIC_URL="/static/",
-    UBER_ACCESS_TOKEN=MOCK_UBER_TOKEN,
-    **WEBHOOK_SETTINGS,
-)
-class HttpOrderClientTests(WebhookClientMixin, LiveServerTestCase):
-    def mock_base(self) -> str:
-        return f"{self.live_server_url}/mock/uber"
+# A stand-in for Uber's Get Order endpoint, so these tests use real HTTP
+# without depending on any other app.
+class StubUberApiHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.headers.get("Authorization") != f"Bearer {STUB_UBER_TOKEN}":
+            self._reply(401, {"detail": "Unauthorized."})
+            return
+        order = json.loads(fixture_bytes("uber_get_order.json"))
+        order["id"] = self.path.rsplit("/", 1)[-1]
+        self._reply(200, order)
 
-    def http_client(self, access_token: str = MOCK_UBER_TOKEN) -> HttpOrderClient:
-        return HttpOrderClient(api_base=self.mock_base(), access_token=access_token)
+    def _reply(self, status_code: int, body: dict) -> None:
+        payload = json.dumps(body).encode()
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
-    def test_fetches_the_official_order_under_the_requested_id(self):
+    def log_message(self, *args):
+        pass
+
+
+@override_settings(UBER_ACCESS_TOKEN=STUB_UBER_TOKEN, **WEBHOOK_SETTINGS)
+class HttpOrderClientTests(WebhookClientMixin, APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), StubUberApiHandler)
+        cls.api_base = f"http://127.0.0.1:{cls.server.server_address[1]}"
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+        super().tearDownClass()
+
+    def http_client(self, access_token: str = STUB_UBER_TOKEN) -> HttpOrderClient:
+        return HttpOrderClient(api_base=self.api_base, access_token=access_token)
+
+    def test_fetches_the_order_under_the_requested_id(self):
         order = self.http_client().get_order("abc-123")
         self.assertEqual(order["id"], "abc-123")
         self.assertEqual(order["payment"]["charges"]["total"]["amount"], 1399)
-
-    def test_mock_returns_401_without_a_bearer_token(self):
-        with self.assertRaises(urllib.error.HTTPError) as caught:
-            urllib.request.urlopen(f"{self.mock_base()}/v2/eats/order/abc-123")
-        self.assertEqual(caught.exception.code, 401)
 
     def test_rejected_token_raises_a_lookup_error(self):
         with self.assertRaises(OrderLookupError):
@@ -1124,7 +1115,7 @@ class HttpOrderClientTests(WebhookClientMixin, LiveServerTestCase):
             "uber_get_order.json"
         )
         with (
-            self.settings(UBER_ORDER_CLIENT=HTTP_ORDER_CLIENT, UBER_API_BASE=self.mock_base()),
+            self.settings(UBER_ORDER_CLIENT=HTTP_ORDER_CLIENT, UBER_API_BASE=self.api_base),
             mock.patch("urllib.request.urlopen", return_value=official_response),
         ):
             response = self.post_uber()
@@ -1132,7 +1123,7 @@ class HttpOrderClientTests(WebhookClientMixin, LiveServerTestCase):
         self.assertEqual(Order.objects.count(), 0)
 
     def test_webhook_is_ingested_through_the_http_client(self):
-        with self.settings(UBER_ORDER_CLIENT=HTTP_ORDER_CLIENT, UBER_API_BASE=self.mock_base()):
+        with self.settings(UBER_ORDER_CLIENT=HTTP_ORDER_CLIENT, UBER_API_BASE=self.api_base):
             response = self.post_uber()
         self.assertEqual(response.status_code, 200)
         order = Order.objects.get()
