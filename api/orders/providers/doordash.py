@@ -7,7 +7,13 @@ from django.conf import settings
 
 from .. import constants
 from . import validation
-from .base import OrderData, Provider, WebhookReply, invalid_order_on_mapping_error
+from .base import (
+    InvalidOrderPayload,
+    OrderData,
+    Provider,
+    WebhookReply,
+    invalid_order_on_mapping_error,
+)
 
 ORDER_CREATE_EVENT = "OrderCreate"
 STATUS_MAP = {
@@ -39,7 +45,12 @@ class DoorDashProvider(Provider):
     def ignored_event(self, payload: dict[str, Any]) -> str | None:
         event = payload["event"]
         event_type = event.get("type")
-        if event_type == ORDER_CREATE_EVENT and event.get("status") in STATUS_MAP:
+        event_status = event.get("status")
+        # A list or object cannot be looked up in the status map, so it is
+        # rejected here instead of failing the lookup.
+        if not isinstance(event_status, str):
+            raise InvalidOrderPayload("event.status must be a string.")
+        if event_type == ORDER_CREATE_EVENT and event_status in STATUS_MAP:
             return None
         return str(event_type)
 

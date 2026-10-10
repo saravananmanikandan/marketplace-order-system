@@ -417,6 +417,16 @@ class WebhookReplyTests(WebhookTestCase):
                 self.assertEqual(response.json(), {"ignored": ignored})
                 self.assertEqual(Order.objects.count(), 0)
 
+    def test_doordash_non_string_event_status_returns_a_fail_payload(self):
+        for event_status in ([], {}, 1, None):
+            with self.subTest(event_status=event_status):
+                payload = doordash_payload()
+                payload["event"]["status"] = event_status
+                response = self.post_doordash_payload(payload)
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json()["order_status"], "fail")
+                self.assertEqual(Order.objects.count(), 0)
+
     def test_uber_still_returns_an_empty_200(self):
         response = self.post_uber()
         self.assertEqual(response.status_code, 200)
