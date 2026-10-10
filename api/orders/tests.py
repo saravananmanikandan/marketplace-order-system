@@ -998,6 +998,18 @@ class StatusAdvanceTests(APITestCase):
                 self.assertEqual(detail["next_status"], expected)
                 self.assertEqual(listed["results"][0]["next_status"], expected)
 
+    def test_updated_at_is_not_served_but_still_moves_with_each_status_change(self):
+        order = make_order()
+        before = Order.objects.get(pk=order.pk).updated_at
+        reply = self.advance(order)
+        self.assertNotIn("updated_at", reply.json())
+        self.assertNotIn(
+            "updated_at", self.client.get(reverse("order-detail", args=[order.id])).json()
+        )
+        listed = self.client.get(reverse("order-list")).json()["results"][0]
+        self.assertNotIn("updated_at", listed)
+        self.assertGreater(Order.objects.get(pk=order.pk).updated_at, before)
+
     def test_the_advance_reply_carries_the_new_next_status(self):
         response = self.advance(make_order())
         self.assertEqual(response.data["status"], constants.STATUS_ACCEPTED)

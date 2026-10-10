@@ -20,7 +20,6 @@ class OrderListSerializer(serializers.ModelSerializer):
             "total_cents",
             "currency",
             "created_at",
-            "updated_at",
         ]
 
     def get_next_status(self, order: Order) -> str | None:
