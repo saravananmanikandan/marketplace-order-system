@@ -122,29 +122,31 @@
 }
 
 .sim-group legend,
-.sim-segments legend {
+.sim-provider legend {
   padding: 0 var(--space-4);
   font-size: var(--text-14);
   color: var(--muted);
 }
 
 /* Provider switch: a flat segmented control */
+.sim-provider {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sim-provider legend {
+  margin-bottom: var(--space-8);
+  padding: 0;
+}
+
 .sim-segments {
   display: flex;
   gap: var(--space-4);
-  min-width: 0;
-  margin: 0;
   padding: var(--space-4);
   background: var(--fill-soft);
-  border: 0;
   border-radius: var(--radius-control);
-}
-
-.sim-segments legend {
-  float: left;
-  width: 100%;
-  margin-bottom: var(--space-8);
-  padding: 0;
 }
 
 .sim-segment {
@@ -163,6 +165,7 @@
   height: 32px;
   font-size: var(--text-14);
   font-weight: var(--weight-medium);
+  white-space: nowrap;
   color: var(--muted);
   border: 1px solid transparent;
   border-radius: 6px;

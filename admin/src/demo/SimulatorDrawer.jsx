@@ -253,20 +253,22 @@ export default function SimulatorDrawer({ config, lastOrderIds, onSent, onClose 
         </header>
 
         <form className="sim-form" onSubmit={handleSubmit}>
-          <fieldset className="sim-segments">
+          <fieldset className="sim-provider">
             <legend>Provider</legend>
-            {[UBER, DOORDASH].map((provider) => (
-              <label key={provider} className="sim-segment">
-                <input
-                  type="radio"
-                  name="sim-provider"
-                  value={provider}
-                  checked={form.provider === provider}
-                  onChange={setField("provider")}
-                />
-                <span>{PROVIDER_LABELS[provider]}</span>
-              </label>
-            ))}
+            <div className="sim-segments">
+              {[UBER, DOORDASH].map((provider) => (
+                <label key={provider} className="sim-segment">
+                  <input
+                    type="radio"
+                    name="sim-provider"
+                    value={provider}
+                    checked={form.provider === provider}
+                    onChange={setField("provider")}
+                  />
+                  <span>{PROVIDER_LABELS[provider]}</span>
+                </label>
+              ))}
+            </div>
           </fieldset>
 
           <label className="field">
