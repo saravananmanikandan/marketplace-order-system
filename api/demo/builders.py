@@ -36,6 +36,7 @@ MAX_QUANTITY = 99
 MAX_UNIT_PRICE_CENTS = 100_000
 MAX_TEXT_LENGTH = 100
 MAX_PHONE_LENGTH = 32
+MAX_NOTES_LENGTH = 200
 ORDER_ID_PATTERN = r"[A-Za-z0-9_-]{1,64}"
 DOORDASH_ID_PREFIX = "dd-"
 DOORDASH_ID_BYTES = 3
@@ -46,7 +47,8 @@ OPTION_KEYS = {
     "provider", "preset", "order_id", "customer", "items", "uber_state", "auth", "deliveries",
 }
 CUSTOMER_KEYS = {"first_name", "last_name", "phone"}
-ITEM_KEYS = {"name", "quantity", "unit_price_cents"}
+REQUIRED_ITEM_KEYS = {"name", "quantity", "unit_price_cents"}
+ITEM_KEYS = REQUIRED_ITEM_KEYS | {"notes"}
 
 RANDOM_FIRST_NAMES = ("Maya", "Jonas", "Priya", "Lucas", "Amara", "Diego", "Hana", "Omar")
 RANDOM_LAST_INITIALS = ("R.", "K.", "S.", "M.", "T.", "L.", "N.", "B.")
@@ -78,6 +80,7 @@ class Item:
     name: str
     quantity: int
     unit_price_cents: int
+    notes: str = ""
 
     @property
     def line_total_cents(self) -> int:
@@ -142,6 +145,12 @@ def _text(value: Any, field: str, max_length: int) -> str:
     return value.strip()
 
 
+def _notes(value: Any) -> str:
+    # Notes are optional extras, so anything that is not text becomes empty,
+    # and long text is cut at the cap instead of failing the whole order.
+    return value.strip()[:MAX_NOTES_LENGTH] if isinstance(value, str) else ""
+
+
 def _whole_number(value: Any, field: str, minimum: int, maximum: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= maximum:
         raise InvalidOptions(f"{field} must be a whole number from {minimum} to {maximum}.")
@@ -165,8 +174,10 @@ def _items(value: Any) -> tuple[Item, ...]:
 
 
 def _item(value: Any) -> Item:
-    if not isinstance(value, dict) or set(value) != ITEM_KEYS:
-        raise InvalidOptions("Each item needs exactly name, quantity and unit_price_cents.")
+    if not isinstance(value, dict) or not REQUIRED_ITEM_KEYS <= set(value) <= ITEM_KEYS:
+        raise InvalidOptions(
+            "Each item needs name, quantity and unit_price_cents, and may have notes."
+        )
     name = _text(value["name"], "item name", MAX_TEXT_LENGTH)
     if not name:
         raise InvalidOptions("Each item needs a name.")
@@ -176,6 +187,7 @@ def _item(value: Any) -> Item:
         unit_price_cents=_whole_number(
             value["unit_price_cents"], "item unit_price_cents", 0, MAX_UNIT_PRICE_CENTS
         ),
+        notes=_notes(value.get("notes")),
     )
 
 
@@ -278,6 +290,8 @@ def _uber_item(template: dict[str, Any], number: int, item: Item, currency: str)
         base_non_loyalty_unit_price=unit,
         base_total_price=line,
     )
+    if item.notes:
+        built["special_instructions"] = item.notes
     return built
 
 
@@ -288,6 +302,20 @@ def _money(amount: int, currency: str) -> dict[str, Any]:
         "currency_code": currency,
         "formatted_amount": f"{symbol}{amount / 100:.2f}",
     }
+
+
+def _doordash_item(template: dict[str, Any], number: int, item: Item) -> dict[str, Any]:
+    built = {
+        **template,
+        "extras": [],
+        "merchant_supplied_id": f"item-{number}",
+        "name": item.name,
+        "price": item.unit_price_cents,
+        "quantity": item.quantity,
+    }
+    if item.notes:
+        built["special_instructions"] = item.notes
+    return built
 
 
 def build_doordash_webhook(
@@ -303,15 +331,7 @@ def build_doordash_webhook(
     )
     template = order["categories"][0]["items"][0]
     order["categories"][0]["items"] = [
-        {
-            **template,
-            "extras": [],
-            "merchant_supplied_id": f"item-{number}",
-            "name": item.name,
-            "price": item.unit_price_cents,
-            "quantity": item.quantity,
-        }
-        for number, item in enumerate(items, 1)
+        _doordash_item(template, number, item) for number, item in enumerate(items, 1)
     ]
     order["subtotal"] = sum(item.line_total_cents for item in items)
     order["tax"] = 0

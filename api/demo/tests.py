@@ -263,6 +263,67 @@ class SimulatorBuilderTests(SimpleTestCase):
                 )
                 self.assertEqual(order["current_state"], sample_state)
 
+    @staticmethod
+    def options_with_notes(notes=None, **item_changes):
+        item = {"name": "Dosa", "quantity": 1, "unit_price_cents": 850, **item_changes}
+        if notes is not None:
+            item["notes"] = notes
+        return {"provider": "doordash", "preset": "custom", "items": [item]}
+
+    def test_notes_are_stripped_and_kept(self):
+        options = self.options_with_notes("  no onions please \n")
+        self.assertEqual(builders.parse_options(options).items[0].notes, "no onions please")
+
+    def test_notes_default_to_empty_when_left_out(self):
+        self.assertEqual(builders.parse_options(self.options_with_notes()).items[0].notes, "")
+
+    def test_notes_that_are_not_text_become_empty(self):
+        for notes in (5, True, None, ["no onions"], {"text": "no onions"}, 1.5):
+            with self.subTest(notes=notes):
+                options = self.options_with_notes()
+                options["items"][0]["notes"] = notes
+                self.assertEqual(builders.parse_options(options).items[0].notes, "")
+
+    def test_long_notes_are_cut_at_the_cap(self):
+        notes = builders.parse_options(self.options_with_notes("x" * 500)).items[0].notes
+        self.assertEqual(notes, "x" * builders.MAX_NOTES_LENGTH)
+        exact = "y" * builders.MAX_NOTES_LENGTH
+        self.assertEqual(builders.parse_options(self.options_with_notes(exact)).items[0].notes, exact)
+
+    def test_items_still_reject_unknown_and_missing_keys(self):
+        for item in (
+            {"name": "A", "quantity": 1, "unit_price_cents": 1, "colour": "red"},
+            {"name": "A", "quantity": 1, "notes": "x"},
+            {"quantity": 1, "unit_price_cents": 1, "notes": "x"},
+        ):
+            with self.subTest(item=item):
+                with self.assertRaises(builders.InvalidOptions):
+                    builders.parse_options(
+                        {"provider": "doordash", "preset": "custom", "items": [item]}
+                    )
+
+    def test_an_item_with_a_note_carries_special_instructions_in_both_providers(self):
+        customer = builders.Customer("A")
+        items = (builders.Item("Dosa", 1, 850, "no onions"),)
+        uber = builders.build_uber_order("n-1", "custom", customer, items, "CREATED")
+        dd = builders.build_doordash_webhook("n-2", "custom", customer, items)
+        self.assertEqual(uber["cart"]["items"][0]["special_instructions"], "no onions")
+        self.assertEqual(dd["order"]["categories"][0]["items"][0]["special_instructions"], "no onions")
+
+    def test_an_empty_note_adds_no_special_instructions_key(self):
+        customer = builders.Customer("A")
+        items = (builders.Item("Dosa", 1, 850), builders.Item("Tea", 1, 100, ""))
+        uber = builders.build_uber_order("n-3", "custom", customer, items, "CREATED")
+        dd = builders.build_doordash_webhook("n-4", "custom", customer, items)
+        for item in (*uber["cart"]["items"], *dd["order"]["categories"][0]["items"]):
+            self.assertNotIn("special_instructions", item)
+
+    def test_the_official_presets_never_get_notes(self):
+        notes = (builders.Item("Dosa", 1, 850, "no onions"),)
+        uber = builders.build_uber_order("o-1", "official", builders.Customer(), notes, "CREATED")
+        dd = builders.build_doordash_webhook("o-2", "official", builders.Customer(), notes)
+        self.assertNotIn("no onions", json.dumps([uber, dd]))
+
     def test_the_uber_signature_is_accepted_by_the_core_verifier(self):
         body = json.dumps(builders.build_uber_notification("sig-1", "random")).encode()
         valid, _ = uber_headers(body, valid=True)
@@ -342,6 +403,50 @@ class SimulatorEndpointTests(SimulatorClientMixin, APITestCase):
         self.assertEqual(order.status, "accepted")
         self.assertEqual(order.total_cents, CUSTOM_TOTAL_CENTS)
         self.assertEqual([item["name"] for item in order.line_items], ["Test Wrap", "Test Tea"])
+
+    def send_noted(self, provider, notes):
+        item = {"name": "Dosa", "quantity": 1, "unit_price_cents": 850}
+        if notes is not None:
+            item["notes"] = notes
+        response = self.send(provider=provider, preset="custom", customer=TEST_CUSTOMER, items=[item])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["deliveries"][0]["status"], 200)
+        return Order.objects.get()
+
+    def test_a_note_reaches_the_core_order_for_both_providers(self):
+        for provider in ("uber_eats", "doordash"):
+            with self.subTest(provider=provider):
+                Order.objects.all().delete()
+                order = self.send_noted(provider, "  no onions, severe allergy  ")
+                self.assertEqual(order.line_items[0]["notes"], "no onions, severe allergy")
+
+    def test_a_note_that_is_not_text_gives_empty_notes_in_the_core_order(self):
+        for provider in ("uber_eats", "doordash"):
+            for notes in (5, ["no onions"], None):
+                with self.subTest(provider=provider, notes=notes):
+                    Order.objects.all().delete()
+                    self.assertEqual(self.send_noted(provider, notes).line_items[0]["notes"], "")
+
+    def test_a_too_long_note_is_cut_at_the_cap_in_the_core_order(self):
+        for provider in ("uber_eats", "doordash"):
+            with self.subTest(provider=provider):
+                Order.objects.all().delete()
+                order = self.send_noted(provider, "z" * 1000)
+                self.assertEqual(order.line_items[0]["notes"], "z" * builders.MAX_NOTES_LENGTH)
+
+    def test_an_empty_note_sends_no_special_instructions_to_the_core(self):
+        Order.objects.all().delete()
+        uber = self.send_noted("uber_eats", "")
+        self.assertNotIn("special_instructions", uber.raw_payload["order"]["cart"]["items"][0])
+        Order.objects.all().delete()
+        dd = self.send_noted("doordash", "   ")
+        self.assertNotIn("special_instructions", dd.raw_payload["order"]["categories"][0]["items"][0])
+
+    def test_a_copied_curl_carries_the_note(self):
+        item = {"name": "Dosa", "quantity": 1, "unit_price_cents": 850, "notes": "no onions"}
+        curl = self.copy_curl(provider="doordash", preset="custom", customer=TEST_CUSTOMER, items=[item]).json()["curl"]
+        self.assertEqual(self.run_copied_curl(curl).status_code, 200)
+        self.assertEqual(Order.objects.get().line_items[0]["notes"], "no onions")
 
     def test_a_custom_doordash_order_arrives_and_is_confirmed(self):
         response = self.send(

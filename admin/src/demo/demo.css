@@ -201,6 +201,11 @@
   align-items: end;
 }
 
+/* Its own line under the name, quantity and price, so a narrow row never overflows. */
+.sim-item-notes {
+  grid-column: 1 / -1;
+}
+
 .sim-items > .button-quiet {
   color: var(--text);
   background: var(--surface);

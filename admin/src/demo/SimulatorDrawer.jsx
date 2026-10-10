@@ -13,11 +13,13 @@ const OFFICIAL_PRESET = "official";
 const NEW_ORDER = "new";
 const REUSE_ORDER = "reuse";
 const CENTS_PER_DOLLAR = 100;
+// The same cap the server applies to item notes; it cuts longer text anyway.
+const MAX_NOTES_LENGTH = 200;
 const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])';
 
 let nextRowKey = 0;
-const emptyRow = () => ({ key: nextRowKey++, name: "", quantity: "1", price: "" });
+const emptyRow = () => ({ key: nextRowKey++, name: "", quantity: "1", price: "", notes: "" });
 
 function pillTone(status) {
   if (status >= 200 && status < 300) return "ok";
@@ -97,6 +99,15 @@ function ItemsEditor({ rows, setRows, maxItems }) {
           >
             Remove
           </button>
+          <label className="field sim-item-notes">
+            <span>Item {index + 1} notes (optional)</span>
+            <input
+              maxLength={MAX_NOTES_LENGTH}
+              placeholder="For example: no onions, nut allergy"
+              value={row.notes}
+              onChange={(event) => update(row.key, "notes", event.target.value)}
+            />
+          </label>
         </div>
       ))}
       <button
@@ -167,6 +178,7 @@ function toOptions(form, rows, lastOrderId) {
       name: row.name,
       quantity: Number(row.quantity),
       unit_price_cents: Math.round(Number(row.price) * CENTS_PER_DOLLAR),
+      notes: row.notes,
     }));
   }
   return options;
