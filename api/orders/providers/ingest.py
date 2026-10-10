@@ -35,8 +35,14 @@ def save_order(data: OrderData) -> Order:
         "external_order_id": data.external_order_id,
     }
     with transaction.atomic():
+        # The row lock keeps two deliveries of the same order from both reading
+        # the old status on databases with row locks (SQLite ignores it and
+        # relies on its IMMEDIATE transactions instead).
         stored = (
-            Order.objects.filter(**identity).values_list("status", flat=True).first()
+            Order.objects.select_for_update()
+            .filter(**identity)
+            .values_list("status", flat=True)
+            .first()
         )
         fields = {
             "status": resolve_status(stored, data.status),

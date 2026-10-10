@@ -22,7 +22,7 @@ from rest_framework.test import APITestCase
 
 from . import constants
 from .models import Order
-from .providers import registry
+from .providers import ingest, registry
 from .providers.base import (
     InvalidOrderPayload,
     OrderClient,
@@ -89,6 +89,25 @@ class OrderModelTests(TestCase):
 
     def test_cancelled_has_no_next_status(self):
         self.assertIsNone(make_order(status=constants.STATUS_CANCELLED).next_status())
+
+    def test_save_order_reads_the_stored_status_under_a_row_lock(self):
+        data = OrderData(
+            provider=constants.PROVIDER_UBER,
+            external_order_id="lock-1",
+            status=constants.STATUS_NEW,
+            customer_name="",
+            customer_phone="",
+            line_items=[],
+            total_cents=100,
+            currency="USD",
+            raw_payload={},
+        )
+        manager = Order.objects
+        with mock.patch.object(
+            manager, "select_for_update", wraps=manager.select_for_update
+        ) as select_for_update:
+            ingest.save_order(data)
+        select_for_update.assert_called_once_with()
 
 
 class StubProvider(Provider):
