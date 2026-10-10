@@ -65,7 +65,7 @@ export default function OrderFilters({ params, onChange, onClear }) {
         options={SORT_OPTIONS}
         onChange={(ordering) => onChange({ ordering })}
       />
-      <button type="button" className="button button-quiet" onClick={onClear}>
+      <button type="button" className="button button-ghost" onClick={onClear}>
         Clear filters
       </button>
     </form>

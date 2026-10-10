@@ -1,0 +1,232 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  font-size: var(--text-16);
+  line-height: var(--line-height);
+  color: var(--text);
+  background: var(--canvas);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: var(--text-28);
+}
+
+h2 {
+  font-size: var(--text-20);
+}
+
+a {
+  color: var(--link);
+}
+
+code,
+pre {
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-13);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.error-text {
+  color: var(--danger-text);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  gap: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  height: var(--control-height);
+  padding: 0 var(--space-16);
+  font: inherit;
+  font-size: var(--text-14);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  color: var(--btn-text);
+  text-decoration: none;
+  white-space: nowrap;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-bg);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  border-color: var(--btn-bg-hover);
+}
+
+.button-secondary {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: var(--row-hover);
+  border-color: var(--border);
+}
+
+.button-ghost {
+  color: var(--text);
+  background: transparent;
+  border-color: transparent;
+}
+
+.button-ghost:hover:not(:disabled) {
+  background: var(--fill-soft);
+  border-color: var(--fill-soft);
+}
+
+.button:disabled {
+  color: var(--btn-disabled-text);
+  background: var(--btn-disabled-bg);
+  border-color: var(--btn-disabled-bg);
+  cursor: default;
+}
+
+.button-block {
+  width: 100%;
+}
+
+.icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+/* Inputs and selects */
+input:not([type="checkbox"]):not([type="radio"]),
+select {
+  height: var(--control-height);
+  min-width: 0;
+  padding: 0 var(--space-12);
+  font: inherit;
+  font-size: var(--text-14);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-size: var(--text-14);
+  color: var(--muted);
+}
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+}
+
+.card-body {
+  padding: var(--space-24);
+}
+
+.card-label {
+  font-size: var(--text-14);
+  color: var(--muted);
+}
+
+/* Status pills */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--text-12);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--status-completed-text);
+  background: var(--status-completed-bg);
+  border-radius: var(--radius-pill);
+}
+
+.badge-new { color: var(--status-new-text); background: var(--status-new-bg); }
+.badge-accepted { color: var(--status-accepted-text); background: var(--status-accepted-bg); }
+.badge-preparing { color: var(--status-preparing-text); background: var(--status-preparing-bg); }
+.badge-ready { color: var(--status-ready-text); background: var(--status-ready-bg); }
+.badge-completed { color: var(--status-completed-text); background: var(--status-completed-bg); }
+.badge-cancelled { color: var(--status-cancelled-text); background: var(--status-cancelled-bg); }
+
+.refresh-note {
+  padding: 2px var(--space-8);
+  font-size: var(--text-12);
+  color: var(--status-accepted-text);
+  background: var(--status-accepted-bg);
+  border-radius: var(--radius-pill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}

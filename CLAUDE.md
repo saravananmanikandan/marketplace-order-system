@@ -109,7 +109,7 @@ The webhook simulator and the Uber Get Order mock exist only to ease the reviewe
 
 1. Demo code lives only in `api/demo/`, `admin/src/demo/` and `fixtures/demo/` (plus `scripts/seed_demo.sh`). Nothing else holds demo logic.
 2. Dependencies go one way: the demo imports from the core, the core never imports from the demo. `grep -rn "demo" api/orders` returns nothing, and in `admin/src` outside `admin/src/demo` the only match is the single lazy import in `App.jsx`.
-3. The core's only touchpoints are the `DEMO_ENABLED` block in `api/config/settings.py`, the conditional include in `api/config/urls.py`, the lazy `DemoLauncher` import in the top bar slot of `admin/src/App.jsx`, the `/demo/api` entry in the `admin/vite.config.js` proxy, and the demo lines in `.env.example`.
+3. The core's only touchpoints are the `DEMO_ENABLED` block in `api/config/settings.py`, the conditional include in `api/config/urls.py`, the lazy `DemoLauncher` import in the sidebar `actions` slot of `admin/src/App.jsx`, the `/demo/api` entry in the `admin/vite.config.js` proxy, and the demo lines in `.env.example`.
 4. The demo is off in code by default (`DEMO_ENABLED` false). `.env.example` turns it on for the reviewer's `cp .env.example .env` setup, with a comment on how to turn it off.
 5. Deleting `api/demo/`, `admin/src/demo/` and the touchpoints must leave a working core: the backend tests and the admin build pass. Check this in a temporary copy, never in the working tree.
 

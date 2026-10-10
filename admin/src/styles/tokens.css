@@ -1,0 +1,77 @@
+:root {
+  /* Colours */
+  --canvas: #f1f1f2;
+  --surface: #ffffff;
+  --sidebar: #f8f8f9;
+  --border: #e4e4e7;
+  --text: #1f1f23;
+  --muted: #6b6b72;
+  --row-hover: #f7f7f8;
+  --fill-soft: #e9e9eb;
+  --code-bg: #f6f6f7;
+  --link: #2563eb;
+  --danger-text: #8f1a1a;
+  --btn-bg: #1f1f23;
+  --btn-text: #ffffff;
+  --btn-bg-hover: #3a3a40;
+  --btn-disabled-bg: #e4e4e7;
+  --btn-disabled-text: #5f5f66;
+  --focus: #2563eb;
+
+  /* Status pills: tinted background, dark text */
+  --status-new-bg: #e3ebfa;
+  --status-new-text: #1b3a8c;
+  --status-accepted-bg: #fbecc8;
+  --status-accepted-text: #6b4300;
+  --status-preparing-bg: #fbdcc6;
+  --status-preparing-text: #7a3208;
+  --status-ready-bg: #d8f0e0;
+  --status-ready-text: #12623a;
+  --status-completed-bg: #e9e9eb;
+  --status-completed-text: #3a3a40;
+  --status-cancelled-bg: #f9dddd;
+  --status-cancelled-text: #8f1a1a;
+
+  /* Radius */
+  --radius-control: 8px;
+  --radius-inner: 12px;
+  --radius-card: 20px;
+  --radius-pill: 999px;
+
+  /* The one shadow, for the simulator drawer only */
+  --shadow-drawer: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Type */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-28: 28px;
+  --text-36: 36px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --tracking-tight: -0.015em;
+  --line-height: 1.5;
+
+  /* Spacing */
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+  --space-48: 48px;
+
+  /* Layout */
+  --sidebar-width: 232px;
+  --topbar-height: 56px;
+  --control-height: 40px;
+  --row-height: 56px;
+  --content-max: 1200px;
+
+  --transition-fast: 120ms ease;
+}
