@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchOrders } from "../api.js";
 import OrderFilters from "../components/OrderFilters.jsx";
@@ -46,6 +47,16 @@ export default function OrderListPage() {
       placeholderData: keepPreviousData,
       refetchInterval: REFRESH_INTERVAL_MS,
     });
+
+  // The API answers a page past the end with the last page (for example after
+  // orders moved out of the current status filter), so the address follows it.
+  // Placeholder data belongs to the previous address, so it is not compared.
+  const answeredPage = isPlaceholderData ? undefined : data?.page;
+  useEffect(() => {
+    if (answeredPage !== undefined && answeredPage !== params.page) {
+      updateParams({ page: answeredPage }, { replace: true });
+    }
+  }, [answeredPage, params.page, updateParams]);
 
   return (
     <section aria-labelledby="orders-heading">

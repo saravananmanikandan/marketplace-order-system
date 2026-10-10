@@ -858,6 +858,27 @@ class OrderApiTests(APITestCase):
         self.assertIsNotNone(first.data["next"])
         self.assertEqual([row["id"] for row in second.data["results"]], [self.uber_old.id])
         self.assertIsNone(second.data["next"])
+        self.assertEqual((first.data["page"], second.data["page"]), (1, 2))
+
+    def test_a_page_past_the_end_falls_back_to_the_last_page(self):
+        with override_settings(PAGE_SIZE=2):
+            response = self.client.get(reverse("order-list"), {"page": 99})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["page"], 2)
+        self.assertEqual([row["id"] for row in response.data["results"]], [self.uber_old.id])
+        self.assertIsNone(response.data["next"])
+
+    def test_a_page_that_is_not_a_number_falls_back_to_the_first_page(self):
+        for raw_page in ("abc", "0", "-1", "1.5"):
+            with self.subTest(page=raw_page):
+                response = self.client.get(reverse("order-list"), {"page": raw_page})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["page"], 1)
+
+    def test_a_filter_with_no_matches_answers_page_one_with_no_results(self):
+        response = self.client.get(reverse("order-list"), {"search": "matches-nothing", "page": 3})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual((response.data["page"], response.data["results"]), (1, []))
 
     def test_detail_returns_line_items_and_raw_payload(self):
         response = self.client.get(reverse("order-detail", args=[self.dd_new.id]))

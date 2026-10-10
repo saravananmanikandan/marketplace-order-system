@@ -87,6 +87,21 @@ class OrderPagination(PageNumberPagination):
     def get_page_size(self, request) -> int:
         return settings.PAGE_SIZE
 
+    # A page past the end (for example after orders moved out of a status
+    # filter) answers with the last page instead of a 404, and a page that
+    # is not a number answers with the first. The reply names the page it
+    # holds, so the client can correct its address.
+    def paginate_queryset(self, queryset, request, view=None) -> list:
+        paginator = self.django_paginator_class(queryset, self.get_page_size(request))
+        self.page = paginator.get_page(request.query_params.get(self.page_query_param))
+        self.request = request
+        return list(self.page)
+
+    def get_paginated_response(self, data) -> Response:
+        response = super().get_paginated_response(data)
+        response.data[constants.PAGE_FIELD] = self.page.number
+        return response
+
 
 class OrderListView(ListAPIView):
     serializer_class = OrderListSerializer
