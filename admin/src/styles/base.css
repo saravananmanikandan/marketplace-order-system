@@ -165,6 +165,16 @@ pre {
   border-radius: var(--radius-control);
 }
 
+:where(select) {
+  padding-right: var(--select-arrow-space);
+  appearance: none;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right var(--space-12) center;
+  background-size: 16px 16px;
+  cursor: pointer;
+}
+
 :where(input)::placeholder {
   color: var(--muted);
 }
