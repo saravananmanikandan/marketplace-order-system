@@ -36,7 +36,7 @@ class DoorDashProvider(Provider):
 
     def authenticate(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
         provided = headers.get(constants.AUTHORIZATION_HEADER)
-        if not provided:
+        if not self.expected_authorization or not provided:
             return False
         return hmac.compare_digest(
             self.expected_authorization.encode(), provided.encode()

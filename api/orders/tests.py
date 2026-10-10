@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
 
-from config.settings import require_positive_int
+from config.settings import require_env, require_positive_int
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.db import IntegrityError, transaction
@@ -395,6 +395,17 @@ class WebhookAuthTests(WebhookTestCase):
     def test_doordash_prefix_only_header_is_rejected(self):
         self.assert_rejected(self.post_doordash(authorization="Bearer"))
 
+    def test_uber_empty_secret_never_authenticates(self):
+        body = fixture_bytes("uber_webhook.json")
+        with override_settings(UBER_CLIENT_SECRET=""):
+            self.assert_rejected(self.post_uber(body, sign_uber(body, "")))
+
+    def test_doordash_empty_token_never_authenticates(self):
+        with override_settings(DOORDASH_WEBHOOK_AUTH_HEADER=""):
+            for authorization in ("", " ", "Bearer", DOORDASH_AUTH):
+                with self.subTest(authorization=authorization):
+                    self.assert_rejected(self.post_doordash(authorization=authorization))
+
 
 def doordash_payload(**order_changes) -> dict:
     payload = json.loads(fixture_bytes("doordash_order.json"))
@@ -631,6 +642,17 @@ class PageSizeSettingTests(SimpleTestCase):
     def test_valid_page_size_is_read(self):
         with mock.patch.dict(os.environ, {"PAGE_SIZE": "20"}):
             self.assertEqual(require_positive_int("PAGE_SIZE"), 20)
+
+    def test_an_empty_or_unset_provider_secret_stops_startup(self):
+        for name in ("UBER_CLIENT_SECRET", "DOORDASH_WEBHOOK_AUTH_HEADER"):
+            for raw_value in ("", "   ", None):
+                with self.subTest(name=name, raw_value=raw_value):
+                    with mock.patch.dict(os.environ):
+                        os.environ.pop(name, None)
+                        if raw_value is not None:
+                            os.environ[name] = raw_value
+                        with self.assertRaises(ImproperlyConfigured):
+                            require_env(name)
 
 
 def find_keys(node, key: str) -> bool:

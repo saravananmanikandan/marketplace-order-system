@@ -135,7 +135,8 @@ class UberProvider(Provider):
 
     def authenticate(self, raw_body: bytes, headers: Mapping[str, str]) -> bool:
         provided = headers.get(constants.UBER_SIGNATURE_HEADER)
-        if not provided:
+        # An empty key would let anyone sign a body, so it never authenticates.
+        if not self.client_secret or not provided:
             return False
         expected = hmac.new(
             self.client_secret.encode(), raw_body, hashlib.sha256
