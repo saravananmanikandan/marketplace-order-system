@@ -8,7 +8,7 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/list.css";
-import "./styles.css";
+import "./styles/detail.css";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: shouldRetry } },

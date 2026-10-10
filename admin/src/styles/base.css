@@ -193,6 +193,21 @@ pre {
   color: var(--muted);
 }
 
+/* Centred message cards (empty, error, not found) */
+.state-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  align-items: center;
+  padding: var(--space-48) var(--space-24);
+  text-align: center;
+  color: var(--muted);
+}
+
+.state-card[role="alert"] p {
+  color: var(--text);
+}
+
 /* Status pills */
 .badge {
   display: inline-flex;

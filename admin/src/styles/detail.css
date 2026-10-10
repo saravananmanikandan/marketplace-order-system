@@ -1,0 +1,254 @@
+.back-button {
+  margin: 0 0 var(--space-12) calc(-1 * var(--space-12));
+  padding: 0 var(--space-12);
+}
+
+.page-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-8);
+  font-size: var(--text-14);
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: var(--space-24);
+  align-items: start;
+}
+
+.detail-side,
+.detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-24);
+  min-width: 0;
+}
+
+.card-title {
+  margin-bottom: var(--space-16);
+  font-size: var(--text-16);
+  letter-spacing: normal;
+}
+
+h2.card-label {
+  font-weight: var(--weight-regular);
+  letter-spacing: normal;
+}
+
+/* Total */
+.total-amount {
+  margin: var(--space-4) 0 var(--space-24);
+  font-size: var(--text-36);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  margin: 0 0 var(--space-24);
+  font-size: var(--text-14);
+}
+
+.facts div {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-12);
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.advance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  font-size: var(--text-14);
+}
+
+/* Items */
+.line-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.line-item {
+  display: flex;
+  gap: var(--space-16);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-12) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.line-item:first-child {
+  padding-top: 0;
+}
+
+.line-item-text {
+  min-width: 0;
+}
+
+.line-item-name {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.line-item-meta {
+  font-size: var(--text-14);
+}
+
+.line-item-total {
+  flex: none;
+  text-align: right;
+}
+
+.line-items-total {
+  display: flex;
+  justify-content: space-between;
+  padding-top: var(--space-12);
+  font-weight: var(--weight-semibold);
+}
+
+.line-items-note {
+  margin-top: var(--space-12);
+  font-size: var(--text-13);
+}
+
+/* Customer */
+.customer-name {
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.detail-customer .muted {
+  font-size: var(--text-14);
+}
+
+/* Progress */
+.progress {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  min-width: 0;
+}
+
+.progress-segment {
+  height: 6px;
+  background: var(--fill-soft);
+  border-radius: var(--radius-pill);
+}
+
+.progress-step.is-reached .progress-segment {
+  background: var(--btn-bg);
+}
+
+.progress-name {
+  font-size: var(--text-12);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* The last name lines up with the bar's right edge, so "Completed" has room. */
+.progress-step:last-child {
+  align-items: flex-end;
+}
+
+.progress-step:last-child .progress-segment {
+  align-self: stretch;
+}
+
+.progress-step.is-reached .progress-name {
+  color: var(--text);
+}
+
+.progress-step[aria-current="step"] .progress-name {
+  font-weight: var(--weight-semibold);
+}
+
+/* Debug */
+.debug {
+  grid-column: 1 / -1;
+  font-size: var(--text-14);
+}
+
+.debug summary {
+  padding: var(--space-16) var(--space-24);
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: var(--radius-card);
+}
+
+.debug[open] summary {
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+.debug p {
+  padding: var(--space-16) var(--space-24) 0;
+}
+
+.debug pre {
+  max-height: 360px;
+  margin: var(--space-12) var(--space-24) var(--space-24);
+  padding: var(--space-12);
+  overflow: auto;
+  font-size: var(--text-12);
+  background: var(--code-bg);
+  border-radius: var(--radius-inner);
+}
+
+.debug code {
+  font-size: var(--text-12);
+}
+
+@media (max-width: 1023px) {
+  .detail-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-16);
+    align-items: stretch;
+  }
+
+  /* The column wrappers step aside so the cards follow the reading order. */
+  .detail-side,
+  .detail-main {
+    display: contents;
+  }
+
+  .detail-total { order: 1; }
+  .detail-items { order: 2; }
+  .detail-customer { order: 3; }
+  .detail-progress { order: 4; }
+  .debug { order: 5; }
+}
+
+@media (max-width: 767px) {
+  .card-body {
+    padding: var(--space-16);
+  }
+
+  .total-amount {
+    font-size: var(--text-28);
+  }
+}

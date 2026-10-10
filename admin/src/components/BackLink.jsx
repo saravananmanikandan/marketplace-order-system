@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { ChevronLeftIcon } from "./Icons.jsx";
 
 const INITIAL_LOCATION_KEY = "default";
 
@@ -14,8 +15,9 @@ export default function BackLink() {
   }
 
   return (
-    <Link to="/" className="back-link" onClick={handleClick}>
-      ← Back to orders
+    <Link to="/" className="button button-ghost back-button" onClick={handleClick}>
+      <ChevronLeftIcon />
+      Back to orders
     </Link>
   );
 }

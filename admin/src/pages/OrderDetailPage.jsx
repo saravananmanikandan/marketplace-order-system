@@ -3,8 +3,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 import { advanceOrderStatus, fetchOrder } from "../api.js";
 import BackLink from "../components/BackLink.jsx";
+import LineItems from "../components/LineItems.jsx";
+import OrderProgress from "../components/OrderProgress.jsx";
+import PageHeader from "../components/PageHeader.jsx";
 import RefreshNote from "../components/RefreshNote.jsx";
-import LineItemsTable from "../components/LineItemsTable.jsx";
 import StatusBadge from "../components/StatusBadge.jsx";
 import {
   CONFLICT_STATUS,
@@ -20,7 +22,7 @@ import { formatMoney, formatTime } from "../format.js";
 
 function DebugBlock({ order }) {
   return (
-    <details className="debug">
+    <details className="card debug">
       <summary>Debug data</summary>
       <p>
         Raw total: <code>{order.total_cents}</code> cents ({order.currency})
@@ -58,14 +60,18 @@ function AdvanceButton({ order }) {
 
   return (
     <div className="advance">
-      <button
-        type="button"
-        className="button"
-        disabled={!upcoming || advance.isPending}
-        onClick={handleClick}
-      >
-        {upcoming ? `Move to ${labelFor(STATUSES, upcoming)}` : "No further steps"}
-      </button>
+      {upcoming ? (
+        <button
+          type="button"
+          className="button button-block"
+          disabled={advance.isPending}
+          onClick={handleClick}
+        >
+          Move to {labelFor(STATUSES, upcoming)}
+        </button>
+      ) : (
+        <p className="muted">No further steps</p>
+      )}
       {isConflict && (
         <p role="status" className="muted">
           This order changed somewhere else. The latest status is shown above.
@@ -83,44 +89,106 @@ function lineItemsAddUp(order) {
   return sum === order.total_cents;
 }
 
-function OrderDetail({ order }) {
+function TotalCard({ order }) {
   return (
-    <article className="detail">
-      <header className="detail-header">
+    <section className="card card-body detail-total" aria-labelledby="total-heading">
+      <h2 id="total-heading" className="card-label">
+        Total
+      </h2>
+      <p className="total-amount num">{formatMoney(order.total_cents, order.currency)}</p>
+      <dl className="facts">
         <div>
-          <h1>Order {order.external_order_id}</h1>
-          <p className="muted">
-            {labelFor(PROVIDERS, order.provider)} · {formatTime(order.created_at)}
-          </p>
+          <dt>Provider</dt>
+          <dd>{labelFor(PROVIDERS, order.provider)}</dd>
         </div>
-        <StatusBadge status={order.status} />
-      </header>
+        <div>
+          <dt>Order id</dt>
+          <dd className="mono">{order.external_order_id}</dd>
+        </div>
+        <div>
+          <dt>Received</dt>
+          <dd>{formatTime(order.created_at)}</dd>
+        </div>
+        <div>
+          <dt>Currency</dt>
+          <dd>{order.currency}</dd>
+        </div>
+      </dl>
+      <AdvanceButton order={order} />
+    </section>
+  );
+}
 
-      <section aria-labelledby="customer-heading">
-        <h2 id="customer-heading">Customer</h2>
-        <p>{order.customer.name || "No name provided"}</p>
-        <p className="muted">{order.customer.phone || "No phone provided"}</p>
-      </section>
-
-      <section aria-labelledby="items-heading">
-        <h2 id="items-heading">Items</h2>
-        <LineItemsTable items={order.line_items} currency={order.currency} />
-        {!lineItemsAddUp(order) && (
-          <p className="muted">
-            Line items do not add up to the total. Taxes and fees are not itemised here.
-          </p>
-        )}
-        <p className="total">
-          Total <strong>{formatMoney(order.total_cents, order.currency)}</strong>
+function ItemsCard({ order }) {
+  return (
+    <section className="card card-body detail-items" aria-labelledby="items-heading">
+      <h2 id="items-heading" className="card-title">
+        Items
+      </h2>
+      <LineItems items={order.line_items} currency={order.currency} totalCents={order.total_cents} />
+      {!lineItemsAddUp(order) && (
+        <p className="muted line-items-note">
+          Line items do not add up to the total. Taxes and fees are not itemised here.
         </p>
-      </section>
+      )}
+    </section>
+  );
+}
 
-      <section aria-labelledby="status-heading">
-        <h2 id="status-heading">Status</h2>
-        <AdvanceButton order={order} />
-      </section>
+function CustomerCard({ customer }) {
+  return (
+    <section className="card card-body detail-customer" aria-labelledby="customer-heading">
+      <h2 id="customer-heading" className="card-title">
+        Customer
+      </h2>
+      <p className="customer-name">{customer.name || "No name provided"}</p>
+      <p className="muted">{customer.phone || "No phone provided"}</p>
+    </section>
+  );
+}
 
-      <DebugBlock order={order} />
+function ProgressCard({ status }) {
+  return (
+    <section className="card card-body detail-progress" aria-labelledby="progress-heading">
+      <h2 id="progress-heading" className="card-title">
+        Progress
+      </h2>
+      <OrderProgress status={status} />
+    </section>
+  );
+}
+
+function OrderDetail({ order, refreshFailed }) {
+  return (
+    <article>
+      <PageHeader
+        before={<BackLink />}
+        title={`Order ${order.external_order_id}`}
+        meta={
+          <div className="page-meta">
+            <p className="muted">{labelFor(PROVIDERS, order.provider)}</p>
+            <p className="muted">Received {formatTime(order.created_at)}</p>
+          </div>
+        }
+        aside={
+          <>
+            {refreshFailed && <RefreshNote />}
+            <StatusBadge status={order.status} />
+          </>
+        }
+      />
+      {/* Two columns from 1024 px; below that the cards stack in reading order. */}
+      <div className="detail-layout">
+        <div className="detail-side">
+          <TotalCard order={order} />
+          <ProgressCard status={order.status} />
+        </div>
+        <div className="detail-main">
+          <ItemsCard order={order} />
+          <CustomerCard customer={order.customer} />
+        </div>
+        <DebugBlock order={order} />
+      </div>
     </article>
   );
 }
@@ -133,23 +201,32 @@ export default function OrderDetailPage() {
     refetchInterval: REFRESH_INTERVAL_MS,
   });
 
+  if (data) return <OrderDetail order={data} refreshFailed={isRefetchError} />;
+
   return (
     <section>
       <BackLink />
-      {isPending && <div className="message" role="status">Loading order…</div>}
-      {isError && !data && error.status === NOT_FOUND_STATUS && (
-        <div className="message" role="alert">This order does not exist.</div>
+      {isPending && (
+        <div className="card state-card" role="status">
+          <p>Loading order…</p>
+        </div>
       )}
-      {isError && !data && error.status !== NOT_FOUND_STATUS && (
-        <div className="message" role="alert">
-          Could not load the order: {error.message}{" "}
+      {isError && error.status === NOT_FOUND_STATUS && (
+        <div className="card state-card" role="alert">
+          <p>This order does not exist; go back to the order list to pick another one.</p>
+        </div>
+      )}
+      {isError && error.status !== NOT_FOUND_STATUS && (
+        <div className="card state-card" role="alert">
+          <p>
+            Could not load the order ({error.message.replace(/\.$/, "")}). Check that the API is
+            running, then try again.
+          </p>
           <button type="button" className="button" onClick={() => refetch()}>
             Try again
           </button>
         </div>
       )}
-      {isRefetchError && <RefreshNote />}
-      {data && <OrderDetail order={data} />}
     </section>
   );
 }

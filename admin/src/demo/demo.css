@@ -1,20 +1,38 @@
+/* Launcher in the sidebar's actions slot */
 .demo-launcher {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
+  width: 100%;
+  justify-content: space-between;
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.demo-launcher:hover:not(:disabled) {
+  background: var(--row-hover);
+  border-color: var(--border);
 }
 
 .demo-tag {
-  padding: 1px 6px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #6b4a00;
-  background: #fff0cc;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--space-8);
+  font-size: var(--text-12);
+  font-weight: var(--weight-medium);
+  color: var(--status-completed-text);
+  background: var(--status-completed-bg);
+  border-radius: var(--radius-pill);
 }
 
+@media (max-width: 767px) {
+  .demo-launcher {
+    width: auto;
+    height: 36px;
+    padding: 0 var(--space-12);
+  }
+}
+
+/* Drawer */
 .sim-layer {
   position: fixed;
   inset: 0;
@@ -24,7 +42,7 @@
 .sim-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(27, 31, 39, 0.45);
+  background: rgba(0, 0, 0, 0.35);
 }
 
 .sim-drawer {
@@ -37,7 +55,7 @@
   overflow-y: auto;
   background: var(--surface);
   border-left: 1px solid var(--border);
-  box-shadow: -8px 0 24px rgba(27, 31, 39, 0.15);
+  box-shadow: var(--shadow-drawer);
 }
 
 .sim-header {
@@ -45,76 +63,82 @@
   top: 0;
   z-index: 1;
   display: flex;
-  gap: 8px;
+  gap: var(--space-8);
   align-items: center;
-  padding: 14px 16px;
+  padding: var(--space-16) var(--space-24);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 
 .sim-header h2 {
-  margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-20);
 }
 
 .sim-close {
+  width: var(--control-height);
   margin-left: auto;
-  padding: 2px 10px;
-  font-size: 1.3rem;
-  line-height: 1;
+  padding: 0;
+  font-size: var(--text-20);
+  color: var(--text);
+  background: transparent;
   border-color: transparent;
+}
+
+.sim-close:hover:not(:disabled) {
+  background: var(--fill-soft);
+  border-color: var(--fill-soft);
 }
 
 .sim-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: var(--space-16);
+  padding: var(--space-24);
 }
 
-.sim-form input,
-.sim-form select {
-  min-width: 0;
-  padding: 7px 9px;
-  font: inherit;
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+.sim-form :where(input:not([type="checkbox"]):not([type="radio"]), select) {
+  width: 100%;
 }
 
-.sim-group,
-.sim-segments {
+.sim-form :where(input, select):disabled {
+  color: var(--muted);
+  background: var(--code-bg);
+}
+
+.sim-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-12);
   min-width: 0;
   margin: 0;
-  padding: 10px 12px 12px;
+  padding: var(--space-12) var(--space-16) var(--space-16);
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-inner);
 }
 
 .sim-group legend,
 .sim-segments legend {
-  padding: 0 4px;
-  font-size: 0.8rem;
+  padding: 0 var(--space-4);
+  font-size: var(--text-14);
   color: var(--muted);
 }
 
-.sim-form select:disabled,
-.sim-group:disabled {
-  opacity: 0.55;
-}
-
+/* Provider switch: a flat segmented control */
 .sim-segments {
-  flex-direction: row;
-  gap: 0;
-  padding: 0;
+  display: flex;
+  gap: var(--space-4);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--fill-soft);
   border: 0;
+  border-radius: var(--radius-control);
 }
 
 .sim-segments legend {
-  margin-bottom: 4px;
+  float: left;
+  width: 100%;
+  margin-bottom: var(--space-8);
   padding: 0;
 }
 
@@ -128,25 +152,23 @@
 }
 
 .sim-segment span {
-  display: block;
-  padding: 8px;
-  text-align: center;
-  color: var(--btn-bg);
-  border: 1px solid var(--btn-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  font-size: var(--text-14);
+  font-weight: var(--weight-medium);
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 6px;
   cursor: pointer;
-}
-
-.sim-segment:first-of-type span {
-  border-radius: var(--radius-control) 0 0 var(--radius-control);
-}
-
-.sim-segment:last-of-type span {
-  border-radius: 0 var(--radius-control) var(--radius-control) 0;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
 .sim-segment input:checked + span {
-  color: #fff;
-  background: var(--btn-bg);
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
 }
 
 .sim-segment input:focus-visible + span {
@@ -157,80 +179,141 @@
 .sim-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
+/* Items editor */
 .sim-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .sim-item-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 56px 84px auto;
-  gap: 6px;
+  gap: var(--space-8);
   align-items: end;
 }
 
+.sim-items > .button-quiet {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.sim-items > .button-quiet:hover:not(:disabled) {
+  background: var(--row-hover);
+}
+
 .sim-item-remove {
-  padding: 7px 6px;
+  padding: 0 var(--space-8);
+  color: var(--text);
+  background: transparent;
+  border-color: transparent;
+}
+
+.sim-item-remove:hover:not(:disabled) {
+  background: var(--fill-soft);
+  border-color: var(--fill-soft);
+}
+
+.sim-item-remove:disabled {
+  background: transparent;
   border-color: transparent;
 }
 
 .sim-choice {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-8);
   align-items: center;
-  font-size: 0.9rem;
+  font-size: var(--text-14);
 }
 
 .sim-id {
+  font-size: var(--text-12);
   overflow-wrap: anywhere;
-  font-size: 0.75rem;
 }
 
+/* Send is the primary button (base .button); copy is secondary. */
 .sim-send {
-  align-self: stretch;
+  width: 100%;
 }
 
+.sim-curl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.sim-copy-curl {
+  width: 100%;
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.sim-copy-curl:hover:not(:disabled) {
+  background: var(--row-hover);
+  border-color: var(--border);
+}
+
+.sim-hint {
+  font-size: var(--text-13);
+}
+
+.sim-copy-status {
+  min-height: 1.2em;
+  font-size: var(--text-14);
+  color: var(--status-ready-text);
+}
+
+/* Result */
 .sim-result {
-  padding: 0 16px 24px;
+  padding: 0 var(--space-24) var(--space-24);
+  font-size: var(--text-14);
 }
 
 .sim-deliveries {
-  margin: 0;
+  margin: var(--space-12) 0 0;
   padding: 0;
   list-style: none;
 }
 
 .sim-deliveries li {
-  margin-bottom: 10px;
+  margin-bottom: var(--space-12);
 }
 
 .sim-pill {
-  display: inline-block;
-  padding: 1px 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  font-size: var(--text-12);
+  font-weight: var(--weight-medium);
+  border-radius: var(--radius-pill);
 }
 
-.sim-pill-ok { background: #d9f2e3; color: #14532d; }
-.sim-pill-warn { background: #fff0cc; color: #6b4a00; }
-.sim-pill-error { background: #fbdcdc; color: #7a1717; }
+.sim-pill-ok { color: var(--status-ready-text); background: var(--status-ready-bg); }
+.sim-pill-warn { color: var(--status-accepted-text); background: var(--status-accepted-bg); }
+.sim-pill-error { color: var(--status-cancelled-text); background: var(--status-cancelled-bg); }
 
-.sim-result pre {
+.sim-result pre,
+.sim-curl pre {
   max-height: 240px;
-  margin: 6px 0 0;
-  padding: 8px;
+  margin: var(--space-8) 0 0;
+  padding: var(--space-12);
   overflow: auto;
-  font-size: 0.75rem;
+  font-size: var(--text-12);
   white-space: pre-wrap;
   word-break: break-word;
-  background: var(--canvas);
+  background: var(--code-bg);
   border-radius: var(--radius-control);
+}
+
+.sim-curl pre {
+  margin: 0;
 }
 
 .sim-result code {
@@ -238,40 +321,6 @@
 }
 
 .sim-sent summary {
+  color: var(--text);
   cursor: pointer;
-  color: var(--btn-bg);
-}
-
-.sim-curl {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sim-copy-curl {
-  align-self: stretch;
-}
-
-.sim-hint {
-  margin: 0;
-  font-size: 0.8rem;
-}
-
-.sim-copy-status {
-  min-height: 1.2em;
-  margin: 0;
-  font-size: 0.85rem;
-  color: #14532d;
-}
-
-.sim-curl pre {
-  max-height: 200px;
-  margin: 0;
-  padding: 8px;
-  overflow: auto;
-  font-size: 0.75rem;
-  white-space: pre-wrap;
-  word-break: break-word;
-  background: var(--canvas);
-  border-radius: var(--radius-control);
 }

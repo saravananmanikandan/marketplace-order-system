@@ -13,7 +13,7 @@ export default class ErrorBoundary extends Component {
     if (!this.state.hasError) return this.props.children;
     if (this.props.fallback !== undefined) return this.props.fallback;
     return (
-      <div className="message" role="alert">
+      <div className="card state-card" role="alert">
         Something went wrong while showing this page. <Link to="/">Go to the order list</Link>
       </div>
     );
