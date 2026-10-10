@@ -171,7 +171,7 @@ class UberProvider(Provider):
             external_order_id=validation.require_text(
                 order.get("id"), "id", constants.MAX_EXTERNAL_ID_LENGTH
             ),
-            status=STATUS_MAP.get(order.get("current_state"), constants.STATUS_NEW),
+            status=self._status(order.get("current_state")),
             customer_name=validation.customer_name(eater, "eater"),
             customer_phone=validation.customer_phone(eater, "eater"),
             line_items=[self._line_item(item) for item in items],
@@ -180,6 +180,14 @@ class UberProvider(Provider):
             raw_payload={"webhook": payload, "order": order},
             created_at=self._placed_at(order.get("placed_at")),
         )
+
+    @staticmethod
+    def _status(current_state: Any) -> str:
+        if not isinstance(current_state, str) or current_state not in STATUS_MAP:
+            raise InvalidOrderPayload(
+                f"current_state must be one of: {', '.join(STATUS_MAP)}."
+            )
+        return STATUS_MAP[current_state]
 
     # The Get Order docs mark `total` as optional, so its documented parts
     # `sub_total` and `tax` stand in for it when it is missing.

@@ -486,6 +486,17 @@ class WebhookValidationTests(WebhookTestCase):
         )
         self.assert_rejected(response)
 
+    def test_uber_missing_or_unrecognised_current_state_is_rejected(self):
+        cases = {
+            "missing": lambda order: order.pop("current_state"),
+            "unrecognised": lambda order: order.update(current_state="PREPARING"),
+            "lowercase": lambda order: order.update(current_state="created"),
+            "not a string": lambda order: order.update(current_state=["CREATED"]),
+        }
+        for name, change in cases.items():
+            with self.subTest(case=name):
+                self.assert_rejected(self.post_uber_with_order(change))
+
     def test_uber_other_event_types_get_an_empty_200_and_create_nothing(self):
         for event_type in ("orders.failure", "orders.cancel", "store.provisioned", None, ["x"]):
             with self.subTest(event_type=event_type):
