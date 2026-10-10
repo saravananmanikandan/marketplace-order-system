@@ -2,7 +2,7 @@
   /* Colours */
   --canvas: #f1f1f2;
   --surface: #ffffff;
-  --sidebar: #f8f8f9;
+  --topbar: #f8f8f9;
   --border: #e4e4e7;
   --text: #1f1f23;
   --muted: #6b6b72;
@@ -67,10 +67,9 @@
   --space-48: 48px;
 
   /* Layout */
-  --sidebar-width: 232px;
+  --topbar-height: 56px;
   --select-arrow-space: 40px;
   --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%236b6b73' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
-  --topbar-height: 56px;
   --control-height: 40px;
   --row-height: 56px;
   --content-max: 1200px;
