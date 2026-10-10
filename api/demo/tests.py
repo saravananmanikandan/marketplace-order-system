@@ -375,6 +375,25 @@ class SimulatorEndpointTests(SimulatorClientMixin, APITestCase):
         config = self.client.get(reverse("demo-simulator-config")).json()
         self.assertEqual(config["last_order_ids"], {"uber_eats": order_id})
 
+    def test_uber_requests_carry_the_sandbox_environment_header(self):
+        sent = self.send(provider="uber_eats", preset="official").json()["sent"]["headers"]
+        self.assertEqual(sent["X-Environment"], "sandbox")
+        self.assertEqual(Order.objects.count(), 1)
+
+    def test_doordash_requests_do_not_carry_an_environment_header(self):
+        sent = self.send(provider="doordash", preset="official").json()["sent"]["headers"]
+        self.assertNotIn("X-Environment", sent)
+
+    def test_an_invalid_uber_signature_still_carries_the_environment_header(self):
+        response = self.send(provider="uber_eats", preset="official", auth="invalid")
+        self.assertEqual(response.json()["sent"]["headers"]["X-Environment"], "sandbox")
+        self.assertEqual(response.json()["deliveries"][0]["status"], 401)
+
+    def test_a_copied_uber_curl_carries_the_environment_header(self):
+        curl = self.copy_curl(provider="uber_eats", preset="official").json()["curl"]
+        self.assertIn("X-Environment: sandbox", curl)
+        self.assertEqual(self.run_copied_curl(curl).status_code, 200)
+
     def test_secrets_are_never_returned(self):
         dd = self.send(provider="doordash", preset="official").json()["sent"]["headers"]
         uber = self.send(provider="uber_eats", preset="official").json()["sent"]["headers"]

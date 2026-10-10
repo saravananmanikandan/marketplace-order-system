@@ -49,6 +49,10 @@ MAX_RESPONSE_BODY_LENGTH = 2000
 MASK = "****"
 VISIBLE_SECRET_CHARACTERS = 4
 JSON_CONTENT_TYPE_HEADER = {"Content-Type": constants.JSON_CONTENT_TYPE}
+# Uber adds this header to every webhook; the docs say it names the API the
+# request comes from, `production` or `sandbox`. The simulator is never production.
+UBER_ENVIRONMENT_HEADER = "X-Environment"
+UBER_ENVIRONMENT_SANDBOX = "sandbox"
 
 
 def send_webhook(url: str, body: bytes, headers: dict[str, str]) -> tuple[int | None, str]:
@@ -108,7 +112,11 @@ def mask_authorization(value: str) -> str:
 def uber_headers(body: bytes, valid: bool) -> tuple[dict[str, str], dict[str, str]]:
     signature = hmac.new(settings.UBER_CLIENT_SECRET.encode(), body, hashlib.sha256).hexdigest()
     sent = signature if valid else tamper(signature)
-    headers = {**JSON_CONTENT_TYPE_HEADER, constants.UBER_SIGNATURE_HEADER: sent}
+    headers = {
+        **JSON_CONTENT_TYPE_HEADER,
+        UBER_ENVIRONMENT_HEADER: UBER_ENVIRONMENT_SANDBOX,
+        constants.UBER_SIGNATURE_HEADER: sent,
+    }
     return headers, headers
 
 
