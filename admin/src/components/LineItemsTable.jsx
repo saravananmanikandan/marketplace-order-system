@@ -7,6 +7,7 @@ export default function LineItemsTable({ items, currency }) {
 
   return (
     <table className="items orders">
+      <caption className="visually-hidden">Line items</caption>
       <thead>
         <tr>
           {COLUMNS.map((column) => (

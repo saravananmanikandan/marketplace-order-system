@@ -1,12 +1,15 @@
-import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { defineConfig, loadEnv } from "vite";
 
-const API_TARGET = "http://localhost:8000";
+const DEFAULT_API_TARGET = "http://localhost:8000";
+const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 const IGNORED_WARNING_CODE = "MODULE_LEVEL_DIRECTIVE";
 
-export default defineConfig({
+// loadEnv reads the repository .env, and the shell environment wins over it.
+export default defineConfig(({ mode }) => ({
   esbuild: { jsx: "automatic" },
   server: {
-    proxy: { "/api": API_TARGET },
+    proxy: { "/api": loadEnv(mode, REPO_ROOT, "").API_PROXY_TARGET || DEFAULT_API_TARGET },
   },
   build: {
     rollupOptions: {
@@ -16,4 +19,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

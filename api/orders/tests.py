@@ -40,6 +40,9 @@ urlpatterns = [
 ]
 
 FIXTURES_DIR = settings.REPO_ROOT / "fixtures"
+DEMO_ORDERS_DIR = FIXTURES_DIR / "demo" / "uber_orders"
+# Tests read the unmodified official Get Order fixture unless they opt into the demo files.
+NO_DEMO_ORDERS_DIR = FIXTURES_DIR / "demo" / "no-demo-orders"
 UBER_SECRET = "test-uber-secret"
 DOORDASH_AUTH = "Bearer test-doordash-token-0001"
 
@@ -144,6 +147,7 @@ class RegistryTests(SimpleTestCase):
 @override_settings(
     UBER_CLIENT_SECRET=UBER_SECRET,
     UBER_GET_ORDER_FIXTURE=FIXTURES_DIR / "uber_get_order.json",
+    UBER_DEMO_ORDERS_DIR=NO_DEMO_ORDERS_DIR,
 )
 class UberProviderTests(SimpleTestCase):
     def setUp(self):
@@ -291,6 +295,7 @@ WEBHOOK_SETTINGS = {
     "UBER_CLIENT_SECRET": UBER_SECRET,
     "DOORDASH_WEBHOOK_AUTH_HEADER": DOORDASH_AUTH,
     "UBER_GET_ORDER_FIXTURE": FIXTURES_DIR / "uber_get_order.json",
+    "UBER_DEMO_ORDERS_DIR": NO_DEMO_ORDERS_DIR,
     "DEFAULT_CURRENCY": "USD",
 }
 
@@ -917,6 +922,21 @@ class UberOrderResolutionTests(WebhookTestCase):
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(Order.objects.count(), 0)
 
+    def test_demo_orders_have_no_placed_at_so_the_demo_shows_the_received_time(self):
+        paths = list(DEMO_ORDERS_DIR.glob("*.json"))
+        self.assertGreaterEqual(len(paths), 2)
+        for path in paths:
+            with self.subTest(path=path.name):
+                self.assertNotIn("placed_at", json.loads(path.read_text()))
+
+    def test_demo_variant_of_the_official_order_only_changes_ids_and_drops_placed_at(self):
+        official = json.loads(fixture_bytes("uber_get_order.json"))
+        official.pop("placed_at")
+        official.update(id=OFFICIAL_UBER_RESOURCE_ID, display_id=OFFICIAL_UBER_RESOURCE_ID[-5:])
+        demo_path = DEMO_ORDERS_DIR / f"{OFFICIAL_UBER_RESOURCE_ID}.json"
+        self.assertEqual(json.loads(demo_path.read_text()), official)
+
+    @override_settings(UBER_DEMO_ORDERS_DIR=DEMO_ORDERS_DIR)
     def test_a_demo_order_file_named_after_the_id_is_used(self):
         self.post_uber(uber_webhook_for(DEMO_UBER_RESOURCE_ID))
         order = Order.objects.get()
@@ -934,7 +954,7 @@ class FixtureOrderClientTests(SimpleTestCase):
     def test_ids_outside_the_allowed_pattern_raise_invalid_order_payload(self):
         client = FixtureOrderClient(
             fixture_path=FIXTURES_DIR / "uber_get_order.json",
-            demo_dir=FIXTURES_DIR / "demo" / "uber_orders",
+            demo_dir=DEMO_ORDERS_DIR,
         )
         for resource_id in ("../x", "../../uber_get_order", "a/b", "", "id\n", "a" * 129):
             with self.subTest(resource_id=resource_id):
@@ -944,7 +964,7 @@ class FixtureOrderClientTests(SimpleTestCase):
     def test_unknown_id_gets_the_official_order_with_its_own_id(self):
         client = FixtureOrderClient(
             fixture_path=FIXTURES_DIR / "uber_get_order.json",
-            demo_dir=FIXTURES_DIR / "demo" / "uber_orders",
+            demo_dir=DEMO_ORDERS_DIR,
         )
         order = client.get_order("abc-123-XYZ")
         self.assertEqual((order["id"], order["display_id"]), ("abc-123-XYZ", "3-XYZ"))

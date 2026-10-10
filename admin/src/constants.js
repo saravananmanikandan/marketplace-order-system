@@ -44,6 +44,12 @@ export const FIRST_PAGE = 1;
 
 export const ORDERS_QUERY_KEY = "orders";
 
+export const MAX_RETRIES = 2;
+export const NETWORK_ERROR_STATUS = 0;
+export const SERVER_ERROR_STATUS = 500;
+export const NOT_FOUND_STATUS = 404;
+export const CONFLICT_STATUS = 409;
+
 export const labelFor = (options, value) =>
   options.find((option) => option.value === value)?.label ?? value;
 

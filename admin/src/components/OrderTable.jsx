@@ -13,7 +13,13 @@ function OrderRow({ order }) {
   }
 
   return (
-    <tr tabIndex={0} onClick={openDetail} onKeyDown={handleKeyDown} className="order-row">
+    <tr
+      tabIndex={0}
+      onClick={openDetail}
+      onKeyDown={handleKeyDown}
+      className="order-row"
+      aria-label={`Open order ${order.external_order_id} for ${order.customer.name || "unknown customer"}`}
+    >
       <td data-label="Provider">{labelFor(PROVIDERS, order.provider)}</td>
       <td data-label="Order ID" className="mono">
         {order.external_order_id}
@@ -31,6 +37,7 @@ function OrderRow({ order }) {
 export default function OrderTable({ orders, ordering, onSortChange }) {
   return (
     <table className="orders">
+      <caption className="visually-hidden">Orders</caption>
       <thead>
         <tr>
           {SORT_COLUMNS.map((column) => (
