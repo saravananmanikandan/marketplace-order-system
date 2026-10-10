@@ -155,7 +155,8 @@ function toOptions(form, rows, lastOrderId) {
     auth: form.auth,
     deliveries: form.sendTwice ? 2 : 1,
   };
-  if (form.provider === UBER) options.uber_state = form.uberState;
+  // The official sample keeps its own state, so the chosen one is sent only when it is used.
+  if (form.provider === UBER && form.preset !== OFFICIAL_PRESET) options.uber_state = form.uberState;
   if (form.preset === CUSTOM_PRESET) {
     options.customer = {
       first_name: form.firstName,

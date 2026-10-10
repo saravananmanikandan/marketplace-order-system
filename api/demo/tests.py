@@ -242,6 +242,27 @@ class SimulatorBuilderTests(SimpleTestCase):
                     self.assertIsInstance(provider, DoorDashProvider)
                 provider.build_order(payload)
 
+    def test_every_uber_state_the_simulator_offers_is_accepted_by_the_core(self):
+        customer = builders.Customer("Test")
+        items = (builders.Item("Test Wrap", 1, 650),)
+        for state in builders.UBER_STATES:
+            with self.subTest(state=state):
+                order_id = f"state-{state.lower()}"
+                order = builders.build_uber_order(order_id, "custom", customer, items, state)
+                self.assertEqual(order["current_state"], state)
+                staging.stage_order(order_id, order)
+                payload = builders.build_uber_notification(order_id, "custom")
+                UberProvider(order_client=StagedOrderClient()).build_order(payload)
+
+    def test_the_official_preset_keeps_the_sample_state_whatever_state_is_chosen(self):
+        sample_state = json.loads(fixture_bytes("uber_get_order.json"))["current_state"]
+        for state in builders.UBER_STATES:
+            with self.subTest(state=state):
+                order = builders.build_uber_order(
+                    "official-1", "official", builders.Customer(), (), state
+                )
+                self.assertEqual(order["current_state"], sample_state)
+
     def test_the_uber_signature_is_accepted_by_the_core_verifier(self):
         body = json.dumps(builders.build_uber_notification("sig-1", "random")).encode()
         valid, _ = uber_headers(body, valid=True)
