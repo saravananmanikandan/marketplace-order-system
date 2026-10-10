@@ -486,10 +486,24 @@ class WebhookValidationTests(WebhookTestCase):
         )
         self.assert_rejected(response)
 
-    def test_uber_non_order_event_type_is_rejected(self):
+    def test_uber_other_event_types_get_an_empty_200_and_create_nothing(self):
+        for event_type in ("orders.failure", "orders.cancel", "store.provisioned", None, ["x"]):
+            with self.subTest(event_type=event_type):
+                payload = json.loads(fixture_bytes("uber_webhook.json"))
+                payload["event_type"] = event_type
+                with mock.patch.object(FixtureOrderClient, "get_order") as get_order:
+                    response = self.post_uber(json.dumps(payload).encode())
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.content, b"")
+                get_order.assert_not_called()
+                self.assertEqual(Order.objects.count(), 0)
+
+    def test_uber_other_event_types_still_need_a_valid_signature(self):
         payload = json.loads(fixture_bytes("uber_webhook.json"))
-        payload["event_type"] = "store.provisioned"
-        self.assert_rejected(self.post_uber(json.dumps(payload).encode()))
+        payload["event_type"] = "orders.failure"
+        body = json.dumps(payload).encode()
+        response = self.post_uber(body, sign_uber(body, "wrong-secret"))
+        self.assertEqual(response.status_code, 401)
 
     def test_uber_resource_id_with_a_slash_is_rejected(self):
         self.assert_rejected(self.post_uber(uber_webhook_for("a/b")))

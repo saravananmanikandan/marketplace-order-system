@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Mapping
 from datetime import datetime
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,7 @@ from .base import (
     OrderData,
     OrderLookupError,
     Provider,
+    WebhookReply,
     invalid_order_on_mapping_error,
 )
 from .registry import get_order_client
@@ -138,24 +140,24 @@ class UberProvider(Provider):
         ).hexdigest()
         return hmac.compare_digest(expected.encode(), provided.encode())
 
+    # Other Uber webhooks can carry `meta.resource_id` too. They are
+    # acknowledged so Uber stops resending them, but never become orders.
+    def ignored_event(self, payload: dict[str, Any]) -> str | None:
+        event_type = payload.get("event_type")
+        if event_type == constants.UBER_ORDER_NOTIFICATION_EVENT:
+            return None
+        return str(event_type)
+
+    def ignored_reply(self, event_type: str) -> WebhookReply:
+        return WebhookReply(HTTPStatus.OK)
+
     def build_order(self, payload: dict[str, Any]) -> OrderData:
-        self._require_order_event(payload.get("event_type"))
         resource_id = require_resource_id(payload["meta"]["resource_id"])
         order = self.order_client.get_order(resource_id)
         if isinstance(order, dict) and order.get("id") != resource_id:
             raise OrderLookupError("The fetched order has a different id.")
         with invalid_order_on_mapping_error():
             return self._map_order(payload, validation.require_object(order, "order"))
-
-    @staticmethod
-    def _require_order_event(event_type: Any) -> None:
-        if not (
-            isinstance(event_type, str)
-            and event_type.startswith(constants.UBER_ORDER_EVENT_PREFIX)
-        ):
-            raise InvalidOrderPayload(
-                f"event_type must start with {constants.UBER_ORDER_EVENT_PREFIX}"
-            )
 
     def _map_order(self, payload: dict[str, Any], order: dict[str, Any]) -> OrderData:
         eater = validation.optional_object(order.get("eater"), "eater")

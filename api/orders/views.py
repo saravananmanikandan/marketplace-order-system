@@ -59,7 +59,8 @@ class OrderWebhookView(APIView):
             ignored = provider.ignored_event(payload)
             if ignored is not None:
                 logger.info("Ignored webhook event %s", ignored)
-                return Response({"ignored": ignored}, status=status.HTTP_200_OK)
+                reply = provider.ignored_reply(ignored)
+                return Response(reply.body, status=reply.status)
             order = ingest.ingest(provider, payload)
         except InvalidOrderPayload as error:
             reply = provider.rejected_reply(str(error))

@@ -63,6 +63,9 @@ class Provider(ABC):
         """Return the event type when the event is not an order to ingest."""
         return None
 
+    def ignored_reply(self, event_type: str) -> WebhookReply:
+        return WebhookReply(HTTPStatus.OK, {"ignored": event_type})
+
     def accepted_reply(self, order_id: int) -> WebhookReply:
         return WebhookReply(HTTPStatus.OK)
 
