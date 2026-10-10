@@ -85,3 +85,11 @@ def customer_phone(person: dict[str, Any], field: str) -> str:
     return optional_text(
         person.get("phone"), f"{field}.phone", constants.MAX_CUSTOMER_PHONE_LENGTH
     )
+
+
+def customer_phone_code(person: dict[str, Any], field: str) -> str:
+    return optional_text(
+        person.get("phone_code"),
+        f"{field}.phone_code",
+        constants.MAX_CUSTOMER_PHONE_CODE_LENGTH,
+    )

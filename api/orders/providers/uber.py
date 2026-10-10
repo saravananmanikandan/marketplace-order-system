@@ -177,6 +177,9 @@ class UberProvider(Provider):
             status=self._status(order.get("current_state")),
             customer_name=validation.customer_name(eater, "eater"),
             customer_phone=validation.customer_phone(eater, "eater"),
+            # Uber's `phone` is a shared support number; staff dial it and
+            # then enter this code to reach the eater.
+            customer_phone_code=validation.customer_phone_code(eater, "eater"),
             line_items=[self._line_item(item) for item in items],
             total_cents=total_cents,
             currency=currency,

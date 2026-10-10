@@ -16,6 +16,9 @@ class Order(models.Model):
     customer_phone = models.CharField(
         max_length=constants.MAX_CUSTOMER_PHONE_LENGTH, blank=True
     )
+    customer_phone_code = models.CharField(
+        max_length=constants.MAX_CUSTOMER_PHONE_CODE_LENGTH, blank=True, default=""
+    )
     line_items = models.JSONField(default=list)
     total_cents = models.PositiveBigIntegerField()
     currency = models.CharField(max_length=constants.CURRENCY_CODE_LENGTH)

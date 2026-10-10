@@ -42,6 +42,7 @@ def save_order(data: OrderData) -> Order:
             "status": resolve_status(stored, data.status),
             "customer_name": data.customer_name,
             "customer_phone": data.customer_phone,
+            "customer_phone_code": data.customer_phone_code,
             "line_items": data.line_items,
             "total_cents": data.total_cents,
             "currency": data.currency,

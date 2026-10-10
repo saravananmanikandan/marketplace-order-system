@@ -21,7 +21,11 @@ class OrderListSerializer(serializers.ModelSerializer):
         ]
 
     def get_customer(self, order: Order) -> dict[str, str]:
-        return {"name": order.customer_name, "phone": order.customer_phone}
+        return {
+            "name": order.customer_name,
+            "phone": order.customer_phone,
+            "phone_code": order.customer_phone_code,
+        }
 
 
 class OrderDetailSerializer(OrderListSerializer):

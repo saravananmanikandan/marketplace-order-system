@@ -174,6 +174,7 @@ class UberProviderTests(SimpleTestCase):
         self.assertEqual(data.status, constants.STATUS_NEW)
         self.assertEqual(data.customer_name, "Larry")
         self.assertEqual(data.customer_phone, "+1 555-555-5555")
+        self.assertEqual(data.customer_phone_code, "555 55 555")
         self.assertEqual(data.total_cents, 1399)
         self.assertEqual(data.currency, "USD")
         self.assertEqual(
@@ -512,6 +513,19 @@ class WebhookValidationTests(WebhookTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Order.objects.get().external_order_id, "uber-trim-1")
 
+    def test_uber_non_string_phone_code_is_rejected(self):
+        self.assert_rejected(
+            self.post_uber_with_order(lambda order: order["eater"].update(phone_code=555))
+        )
+
+    def test_uber_phone_code_is_served_with_the_customer(self):
+        self.post_uber()
+        order = Order.objects.get()
+        customer = self.client.get(reverse("order-detail", args=[order.id])).json()["customer"]
+        self.assertEqual(
+            customer, {"name": "Larry", "phone": "+1 555-555-5555", "phone_code": "555 55 555"}
+        )
+
     def test_uber_missing_or_unrecognised_current_state_is_rejected(self):
         cases = {
             "missing": lambda order: order.pop("current_state"),
@@ -618,6 +632,7 @@ class WebhookIngestTests(WebhookTestCase):
         self.assertEqual(order.status, constants.STATUS_NEW)
         self.assertEqual(order.customer_name, "Larry")
         self.assertEqual(order.customer_phone, "+1 555-555-5555")
+        self.assertEqual(order.customer_phone_code, "555 55 555")
         self.assertEqual(order.total_cents, 1399)
         self.assertEqual(order.currency, "USD")
         self.assertEqual([item["name"] for item in order.line_items][0], "Fresh-baked muffin")
@@ -643,6 +658,7 @@ class WebhookIngestTests(WebhookTestCase):
         self.assertEqual(order.status, constants.STATUS_NEW)
         self.assertEqual(order.customer_name, "Kelley W.")
         self.assertEqual(order.customer_phone, "+18559731040")
+        self.assertEqual(order.customer_phone_code, "")
         self.assertEqual(order.total_cents, 2300)
         self.assertEqual(order.currency, "USD")
         self.assertEqual(order.line_items[0]["name"], "Burrito Scram-Bowl")
@@ -766,7 +782,7 @@ class OrderApiTests(APITestCase):
 
     def test_list_rows_expose_customer_as_one_object(self):
         row = self.client.get(reverse("order-list")).data["results"][0]
-        self.assertEqual(row["customer"], {"name": "Kelley W.", "phone": ""})
+        self.assertEqual(row["customer"], {"name": "Kelley W.", "phone": "", "phone_code": ""})
         self.assertNotIn("raw_payload", row)
 
     def test_filter_by_provider(self):

@@ -142,7 +142,10 @@ function CustomerCard({ customer }) {
         Customer
       </h2>
       <p className="customer-name">{customer.name || "No name provided"}</p>
-      <p className="muted">{customer.phone || "No phone provided"}</p>
+      <p className="muted">
+        {customer.phone || "No phone provided"}
+        {customer.phone && customer.phone_code && <> · code {customer.phone_code}</>}
+      </p>
     </section>
   );
 }

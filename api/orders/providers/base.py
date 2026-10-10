@@ -38,6 +38,7 @@ class OrderData:
     currency: str
     raw_payload: dict[str, Any]
     created_at: datetime | None = field(default=None)
+    customer_phone_code: str = field(default="")
 
 
 @dataclass(frozen=True)
