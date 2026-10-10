@@ -39,6 +39,8 @@ STATUS_MAP = {
 
 
 def require_resource_id(resource_id: Any) -> str:
+    if isinstance(resource_id, str):
+        resource_id = resource_id.strip()
     is_valid = (
         isinstance(resource_id, str)
         and len(resource_id) <= constants.UBER_RESOURCE_ID_MAX_LENGTH
@@ -154,7 +156,10 @@ class UberProvider(Provider):
     def build_order(self, payload: dict[str, Any]) -> OrderData:
         resource_id = require_resource_id(payload["meta"]["resource_id"])
         order = self.order_client.get_order(resource_id)
-        if isinstance(order, dict) and order.get("id") != resource_id:
+        fetched_id = order.get("id") if isinstance(order, dict) else None
+        if isinstance(fetched_id, str):
+            fetched_id = fetched_id.strip()
+        if isinstance(order, dict) and fetched_id != resource_id:
             raise OrderLookupError("The fetched order has a different id.")
         with invalid_order_on_mapping_error():
             return self._map_order(payload, validation.require_object(order, "order"))
@@ -168,9 +173,7 @@ class UberProvider(Provider):
         items = validation.require_list(cart.get("items"), "cart.items")
         return OrderData(
             provider=constants.PROVIDER_UBER,
-            external_order_id=validation.require_text(
-                order.get("id"), "id", constants.MAX_EXTERNAL_ID_LENGTH
-            ),
+            external_order_id=validation.require_order_id(order.get("id"), "id"),
             status=self._status(order.get("current_state")),
             customer_name=validation.customer_name(eater, "eater"),
             customer_phone=validation.customer_phone(eater, "eater"),

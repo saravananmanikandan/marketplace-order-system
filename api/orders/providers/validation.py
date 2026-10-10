@@ -27,6 +27,13 @@ def require_text(value: Any, field: str, max_length: int | None = None) -> str:
     return check_length(value, field, max_length)
 
 
+def require_order_id(value: Any, field: str) -> str:
+    # Surrounding whitespace is not part of an id; without trimming, "x" and
+    # " x " would be stored as two different orders.
+    trimmed = value.strip() if isinstance(value, str) else value
+    return require_text(trimmed, field, constants.MAX_EXTERNAL_ID_LENGTH)
+
+
 def optional_text(value: Any, field: str, max_length: int | None = None) -> str:
     if value is None:
         return ""

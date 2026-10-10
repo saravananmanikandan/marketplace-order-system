@@ -497,6 +497,21 @@ class WebhookValidationTests(WebhookTestCase):
         )
         self.assert_rejected(response)
 
+    def test_doordash_order_id_is_trimmed_so_a_padded_resend_updates_the_same_row(self):
+        self.post_doordash_payload(doordash_payload(id="dd-trim-1"))
+        response = self.post_doordash_payload(doordash_payload(id="  dd-trim-1\t"))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Order.objects.get().external_order_id, "dd-trim-1")
+
+    def test_doordash_whitespace_only_order_id_is_rejected(self):
+        self.assert_rejected(self.post_doordash_payload(doordash_payload(id="   ")))
+
+    def test_uber_resource_id_and_fetched_id_are_trimmed(self):
+        self.post_uber(uber_webhook_for("uber-trim-1"))
+        response = self.post_uber(uber_webhook_for(" uber-trim-1 "))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Order.objects.get().external_order_id, "uber-trim-1")
+
     def test_uber_missing_or_unrecognised_current_state_is_rejected(self):
         cases = {
             "missing": lambda order: order.pop("current_state"),
@@ -969,7 +984,7 @@ class UberOrderResolutionTests(WebhookTestCase):
         self.assertEqual(Order.objects.filter(external_order_id="repeat-me-1").count(), 1)
 
     def test_unsafe_resource_ids_return_400_and_save_nothing(self):
-        for resource_id in ("../x", "a/b", "a\\b", "has space", "new\n", "", "x.json", 42, None):
+        for resource_id in ("../x", "a/b", "a\\b", "has space", "a\nb", "", "   ", "x.json", 42, None):
             with self.subTest(resource_id=resource_id):
                 payload = json.loads(fixture_bytes("uber_webhook.json"))
                 payload["meta"]["resource_id"] = resource_id
@@ -986,7 +1001,7 @@ class UberOrderResolutionTests(WebhookTestCase):
 class FixtureOrderClientTests(SimpleTestCase):
     def test_ids_outside_the_allowed_pattern_raise_invalid_order_payload(self):
         client = FixtureOrderClient(fixture_path=FIXTURES_DIR / "uber_get_order.json")
-        for resource_id in ("../x", "../../uber_get_order", "a/b", "", "id\n", "a" * 129):
+        for resource_id in ("../x", "../../uber_get_order", "a/b", "", "a\nb", "a" * 129):
             with self.subTest(resource_id=resource_id):
                 with self.assertRaises(InvalidOrderPayload):
                     client.get_order(resource_id)

@@ -82,9 +82,7 @@ class DoorDashProvider(Provider):
         tax = validation.require_money(order.get("tax"), "order.tax")
         return OrderData(
             provider=constants.PROVIDER_DOORDASH,
-            external_order_id=validation.require_text(
-                order.get("id"), "order.id", constants.MAX_EXTERNAL_ID_LENGTH
-            ),
+            external_order_id=validation.require_order_id(order.get("id"), "order.id"),
             status=STATUS_MAP[event["status"]],
             customer_name=validation.customer_name(consumer, "order.consumer"),
             customer_phone=validation.customer_phone(consumer, "order.consumer"),
