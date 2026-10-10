@@ -1,6 +1,7 @@
 import contextlib
 import importlib
 import json
+import shlex
 import threading
 import urllib.request
 from unittest import mock, skipUnless
@@ -360,6 +361,74 @@ class SimulatorEndpointTests(SimulatorClientMixin, APITestCase):
         self.assertTrue(dd["Authorization"].endswith("0001"))
         self.assertIn("X-Uber-Signature", uber)
         self.assertNotIn(settings.UBER_CLIENT_SECRET, json.dumps(uber))
+
+    def copy_curl(self, **options):
+        return self.client.post(reverse("demo-simulator-curl"), options, format="json")
+
+    @staticmethod
+    def curl_parts(curl: str) -> list[str]:
+        # The command follows the optional .env lines after a blank line.
+        command = curl.split("\n\n")[-1]
+        return shlex.split(command.replace(" \\\n  ", " "))
+
+    def run_copied_curl(self, curl: str):
+        parts = self.curl_parts(curl)
+        body = parts[parts.index("--data-binary") + 1].encode()
+        headers = dict(
+            parts[index + 1].split(": ", 1) for index, part in enumerate(parts) if part == "-H"
+        )
+        signature = headers.get("X-Uber-Signature")
+        meta = {"HTTP_X_UBER_SIGNATURE": signature} if signature else {
+            "HTTP_AUTHORIZATION": settings.DOORDASH_WEBHOOK_AUTH_HEADER
+        }
+        return self.client.generic(
+            "POST", reverse("webhook-orders"), data=body, content_type="application/json", **meta
+        )
+
+    def test_copying_a_curl_sends_nothing(self):
+        with mock.patch.object(SimulatorSendView, "sender") as sender:
+            response = self.copy_curl(provider="doordash", preset="random")
+        self.assertEqual(response.status_code, 200)
+        sender.assert_not_called()
+        self.assertEqual(Order.objects.count(), 0)
+
+    def test_each_copy_gets_a_new_order_id(self):
+        first = self.copy_curl(provider="uber_eats", preset="random").json()["order_id"]
+        second = self.copy_curl(provider="uber_eats", preset="random").json()["order_id"]
+        self.assertNotEqual(first, second)
+        self.assertEqual(self.client.get(reverse("demo-simulator-config")).json()["last_order_ids"], {})
+
+    def test_running_a_copied_uber_curl_creates_the_chosen_order(self):
+        copied = self.copy_curl(
+            provider="uber_eats", preset="custom", customer=TEST_CUSTOMER, items=CUSTOM_ITEMS
+        ).json()
+        self.assertNotIn(settings.UBER_CLIENT_SECRET, copied["curl"])
+        self.assertEqual(self.run_copied_curl(copied["curl"]).status_code, 200)
+        order = Order.objects.get()
+        self.assertEqual(order.external_order_id, copied["order_id"])
+        self.assertEqual(order.customer_name, "Test Person")
+        self.assertEqual(order.total_cents, CUSTOM_TOTAL_CENTS)
+
+    def test_two_copied_curls_create_two_orders(self):
+        for _ in range(2):
+            curl = self.copy_curl(provider="doordash", preset="random").json()["curl"]
+            self.assertEqual(self.run_copied_curl(curl).status_code, 200)
+        self.assertEqual(Order.objects.count(), 2)
+
+    def test_doordash_curl_reads_the_token_from_env(self):
+        curl = self.copy_curl(provider="doordash", preset="official").json()["curl"]
+        self.assertIn("set -a; source .env; set +a", curl)
+        self.assertIn('-H "Authorization: $DOORDASH_WEBHOOK_AUTH_HEADER"', curl)
+        self.assertNotIn(settings.DOORDASH_WEBHOOK_AUTH_HEADER, curl)
+
+    def test_doordash_curl_for_invalid_auth_uses_a_wrong_token(self):
+        curl = self.copy_curl(provider="doordash", preset="official", auth="invalid").json()["curl"]
+        self.assertNotIn("source .env", curl)
+        self.assertIn("Bearer not-the-configured-token", curl)
+        self.assertNotIn(settings.DOORDASH_WEBHOOK_AUTH_HEADER[:-1], curl)
+
+    def test_copying_with_invalid_options_returns_400(self):
+        self.assertEqual(self.copy_curl(provider="swiggy").status_code, 400)
 
     def test_invalid_options_return_400(self):
         response = self.client.post(

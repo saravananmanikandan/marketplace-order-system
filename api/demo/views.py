@@ -1,9 +1,12 @@
 import hashlib
 import hmac
 import json
+import shlex
 import threading
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
+from typing import Any
 
 from django.conf import settings
 from django.urls import reverse
@@ -117,6 +120,34 @@ def doordash_headers(valid: bool) -> tuple[dict[str, str], dict[str, str]]:
     return headers, shown
 
 
+DOORDASH_TOKEN_VARIABLE = "DOORDASH_WEBHOOK_AUTH_HEADER"
+INVALID_DOORDASH_AUTHORIZATION = "Bearer not-the-configured-token"
+LOAD_ENV_LINES = (
+    "# Run from the repository root; this loads the DoorDash token from .env.",
+    "set -a; source .env; set +a",
+)
+
+
+def curl_command(url: str, body: bytes, headers: dict[str, str], provider: str, valid: bool) -> str:
+    # The body is quoted byte for byte, so a repeated Uber request still
+    # matches its signature; the DoorDash token is read from .env, never shown.
+    header_options = []
+    for name, value in headers.items():
+        if name == constants.AUTHORIZATION_HEADER and provider == builders.PROVIDER_DOORDASH:
+            value = f"${DOORDASH_TOKEN_VARIABLE}" if valid else INVALID_DOORDASH_AUTHORIZATION
+            header_options.append(f'-H "{name}: {value}"')
+        else:
+            header_options.append(f"-H {shlex.quote(f'{name}: {value}')}")
+    options = [
+        f"curl -i -X POST {shlex.quote(url)}",
+        *header_options,
+        f"--data-binary {shlex.quote(body.decode())}",
+    ]
+    command = " \\\n  ".join(options)
+    uses_env = provider == builders.PROVIDER_DOORDASH and valid
+    return "\n".join([*LOAD_ENV_LINES, "", command]) if uses_env else command
+
+
 class SimulatorConfigView(APIView):
     authentication_classes: list = []
     permission_classes: list = []
@@ -138,6 +169,62 @@ class SimulatorConfigView(APIView):
         )
 
 
+@dataclass(frozen=True)
+class PreparedWebhook:
+    options: builders.Options
+    order_id: str
+    url: str
+    payload: dict[str, Any]
+    body: bytes
+    headers: dict[str, str]
+    shown_headers: dict[str, str]
+    staged_order: dict[str, Any] | None
+
+
+def prepare_webhook(request) -> PreparedWebhook:
+    options = builders.parse_options(request.data)
+    order_id = (
+        builders.new_order_id(options.provider)
+        if options.order_id == builders.NEW_ORDER_ID
+        else options.order_id
+    )
+    payload, staged_order = _build_payload(options, order_id)
+    body = json.dumps(payload).encode()
+    # Headers come after serialising, because the Uber signature covers
+    # the exact bytes that are sent.
+    if options.provider == builders.PROVIDER_UBER:
+        headers, shown_headers = uber_headers(body, options.auth_valid)
+    else:
+        headers, shown_headers = doordash_headers(options.auth_valid)
+    return PreparedWebhook(
+        options=options,
+        order_id=order_id,
+        url=request.build_absolute_uri(reverse("webhook-orders")),
+        payload=payload,
+        body=body,
+        headers=headers,
+        shown_headers=shown_headers,
+        staged_order=staged_order,
+    )
+
+
+def _build_payload(options: builders.Options, order_id: str):
+    customer, items = builders.order_content(options)
+    if options.provider == builders.PROVIDER_UBER:
+        order = builders.build_uber_order(
+            order_id, options.preset, customer, items, options.uber_state
+        )
+        # Staged before the notification can arrive, because the core fetches
+        # the order while it handles the notification.
+        staging.stage_order(order_id, order)
+        return builders.build_uber_notification(order_id, options.preset), order
+    return builders.build_doordash_webhook(order_id, options.preset, customer, items), None
+
+
+def invalid_options(error: builders.InvalidOptions) -> Response:
+    return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class SimulatorSendView(APIView):
     authentication_classes: list = []
     permission_classes: list = []
@@ -145,50 +232,53 @@ class SimulatorSendView(APIView):
 
     def post(self, request) -> Response:
         try:
-            options = builders.parse_options(request.data)
+            prepared = prepare_webhook(request)
         except builders.InvalidOptions as error:
-            return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
-
-        order_id = (
-            builders.new_order_id(options.provider)
-            if options.order_id == builders.NEW_ORDER_ID
-            else options.order_id
+            return invalid_options(error)
+        options = prepared.options
+        deliveries = deliver(
+            self.sender, prepared.url, prepared.body, prepared.headers, options.deliveries
         )
-        payload, staged = self._build(options, order_id)
-        body = json.dumps(payload).encode()
-        # Headers come after serialising, because the Uber signature covers
-        # the exact bytes that are sent.
-        if options.provider == builders.PROVIDER_UBER:
-            headers, shown_headers = uber_headers(body, options.auth_valid)
-        else:
-            headers, shown_headers = doordash_headers(options.auth_valid)
-        url = request.build_absolute_uri(reverse("webhook-orders"))
-        deliveries = deliver(self.sender, url, body, headers, options.deliveries)
-        staging.remember_last_order_id(options.provider, order_id)
+        staging.remember_last_order_id(options.provider, prepared.order_id)
         return Response(
             {
                 "provider": options.provider,
-                "order_id": order_id,
+                "order_id": prepared.order_id,
                 "last_order_ids": staging.last_order_ids(),
                 "deliveries": deliveries,
                 "sent": {
-                    "url": url,
-                    "headers": shown_headers,
-                    "body": payload,
-                    "staged_get_order": staged,
+                    "url": prepared.url,
+                    "headers": prepared.shown_headers,
+                    "body": prepared.payload,
+                    "staged_get_order": prepared.staged_order,
                 },
             }
         )
 
-    @staticmethod
-    def _build(options: builders.Options, order_id: str):
-        customer, items = builders.order_content(options)
-        if options.provider == builders.PROVIDER_UBER:
-            order = builders.build_uber_order(
-                order_id, options.preset, customer, items, options.uber_state
-            )
-            # Staged before the notification goes out, because the core
-            # fetches the order while it handles the notification.
-            staging.stage_order(order_id, order)
-            return builders.build_uber_notification(order_id, options.preset), order
-        return builders.build_doordash_webhook(order_id, options.preset, customer, items), None
+
+class SimulatorCurlView(APIView):
+    authentication_classes: list = []
+    permission_classes: list = []
+
+    # Nothing is sent: the caller runs the command, so a new id here means a
+    # new order when it is pasted. The id is not remembered for "reuse",
+    # because it may never be sent.
+    def post(self, request) -> Response:
+        try:
+            prepared = prepare_webhook(request)
+        except builders.InvalidOptions as error:
+            return invalid_options(error)
+        options = prepared.options
+        return Response(
+            {
+                "provider": options.provider,
+                "order_id": prepared.order_id,
+                "curl": curl_command(
+                    prepared.url,
+                    prepared.body,
+                    prepared.headers,
+                    options.provider,
+                    options.auth_valid,
+                ),
+            }
+        )
