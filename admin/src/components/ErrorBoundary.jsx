@@ -11,6 +11,7 @@ export default class ErrorBoundary extends Component {
 
   render() {
     if (!this.state.hasError) return this.props.children;
+    if (this.props.fallback !== undefined) return this.props.fallback;
     return (
       <div className="message" role="alert">
         Something went wrong while showing this page. <Link to="/">Go to the order list</Link>

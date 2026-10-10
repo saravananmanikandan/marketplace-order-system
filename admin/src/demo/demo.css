@@ -1,0 +1,242 @@
+.demo-launcher {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.demo-tag {
+  padding: 1px 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #6b4a00;
+  background: #fff0cc;
+  border-radius: 999px;
+}
+
+.sim-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.sim-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(27, 31, 39, 0.45);
+}
+
+.sim-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -8px 0 24px rgba(27, 31, 39, 0.15);
+}
+
+.sim-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sim-header h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.sim-close {
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 1.3rem;
+  line-height: 1;
+  border-color: transparent;
+}
+
+.sim-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+}
+
+.sim-form input,
+.sim-form select {
+  min-width: 0;
+  padding: 7px 9px;
+  font: inherit;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.sim-group,
+.sim-segments {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.sim-group legend,
+.sim-segments legend {
+  padding: 0 4px;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+.sim-group:disabled {
+  opacity: 0.55;
+}
+
+.sim-segments {
+  flex-direction: row;
+  gap: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sim-segments legend {
+  margin-bottom: 4px;
+  padding: 0;
+}
+
+.sim-segment {
+  flex: 1;
+}
+
+.sim-segment input {
+  position: absolute;
+  opacity: 0;
+}
+
+.sim-segment span {
+  display: block;
+  padding: 8px;
+  text-align: center;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  cursor: pointer;
+}
+
+.sim-segment:first-of-type span {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.sim-segment:last-of-type span {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.sim-segment input:checked + span {
+  color: #fff;
+  background: var(--color-accent);
+}
+
+.sim-segment input:focus-visible + span {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.sim-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.sim-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sim-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px 84px auto;
+  gap: 6px;
+  align-items: end;
+}
+
+.sim-item-remove {
+  padding: 7px 6px;
+  border-color: transparent;
+}
+
+.sim-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.sim-id {
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+}
+
+.sim-send {
+  align-self: stretch;
+}
+
+.sim-result {
+  padding: 0 16px 24px;
+}
+
+.sim-deliveries {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sim-deliveries li {
+  margin-bottom: 10px;
+}
+
+.sim-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.sim-pill-ok { background: #d9f2e3; color: #14532d; }
+.sim-pill-warn { background: #fff0cc; color: #6b4a00; }
+.sim-pill-error { background: #fbdcdc; color: #7a1717; }
+
+.sim-result pre {
+  max-height: 240px;
+  margin: 6px 0 0;
+  padding: 8px;
+  overflow: auto;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--color-bg);
+  border-radius: var(--radius);
+}
+
+.sim-result code {
+  overflow-wrap: anywhere;
+}
+
+.sim-sent summary {
+  cursor: pointer;
+  color: var(--color-accent);
+}
