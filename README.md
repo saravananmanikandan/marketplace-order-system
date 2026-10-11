@@ -190,17 +190,17 @@ If `runserver` prints `Error: That port is already in use.`, another program is 
 lsof -i :8000
 ```
 
-Note the number in the `PID` column, then stop that program (replace `12345` with your number):
+Note the number in the `PID` column, then stop that program (replace `<PID>` with that number):
 
 ```bash
-kill 12345
+kill <PID>
 ```
 
 If the port is still in use after `kill`, the program may be paused (for example by `Ctrl+Z`, which pauses a program instead of stopping it). A paused program keeps the port but ignores a normal `kill`. Wake it, then stop it:
 
 ```bash
-kill -CONT 12345
-kill 12345
+kill -CONT <PID>
+kill <PID>
 ```
 
 Start the API again with `python manage.py runserver`. Nothing else needs to change.
