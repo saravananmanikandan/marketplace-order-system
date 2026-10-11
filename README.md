@@ -182,7 +182,7 @@ The last line should be `OK`. The tests use their own temporary database, so the
 
 Run the API on port 8000, as shown above. The curl examples, the scripts and the Admin all expect it there.
 
-If `runserver` prints `Error: That port is already in use.`, another program is using port 8000. Often it is an older copy of this API that you started earlier. A copy that is stuck accepts requests but never answers, so the scripts wait with an empty screen. Press `Ctrl+C` to stop them.
+If `runserver` prints `Error: That port is already in use.`, another program is using port 8000. Often it is an older copy of this API that you started earlier. A copy that is stuck accepts requests but never answers. The scripts then stop after 10 seconds and print the address they tried.
 
 **Best fix: free port 8000.** Find the program that uses it:
 
@@ -198,16 +198,18 @@ kill 12345
 
 Start the API again with `python manage.py runserver`. Nothing else needs to change.
 
-**If you cannot free port 8000**, start the API on another port, for example `python manage.py runserver 8077`. Then change all three of these:
+**If you cannot free port 8000**, start the API on another port, for example `python manage.py runserver 8077`. Then:
 
-1. **Admin:** set `API_PROXY_TARGET="http://localhost:8077"` in `.env`, then stop the Admin (`Ctrl+C`) and run `npm run dev` again. Without this step the Admin keeps asking port 8000 and shows no orders.
-2. **Scripts:** set `WEBHOOK_URL`, either in front of the command or as a line in `.env`:
+1. In `.env`, change this one line to the new port. The Admin and the scripts both read it.
 
-   ```bash
-   WEBHOOK_URL=http://localhost:8077/api/webhooks/orders scripts/seed_demo.sh
+   ```
+   API_PROXY_TARGET="http://localhost:8077"
    ```
 
-3. **Curl examples:** change `8000` to `8077` in the URL.
+2. Restart the Admin: press `Ctrl+C` in its terminal and run `npm run dev` again. Without this step the Admin keeps asking port 8000 and shows no orders.
+3. In the curl examples, change `8000` to `8077` in the URL.
+
+The scripts need no other change. Run them exactly as shown above, for example `scripts/seed_demo.sh`.
 
 ---
 
@@ -235,7 +237,7 @@ The simulator is a small demo tool inside the Admin. It sends mock Uber Eats and
 
 You can also use the simulator's **Copy curl command** button. It builds a correct command for you.
 
-All examples send to `http://localhost:8000/api/webhooks/orders`. Run the API first. The curl examples work from any folder. Each example is one command. Copy it as a whole.
+All examples send to `http://localhost:8000/api/webhooks/orders`. If your API runs on another port, change the port in the URL (see [Note about ports](#note-about-ports)). Run the API first. The curl examples work from any folder. Each example is one command. Copy it as a whole.
 
 ### Uber Eats
 
