@@ -35,7 +35,7 @@ The official provider documentation is authoritative. When it disagrees with any
 - https://developer.doordash.com/en-US/docs/marketplace/reference/sample_order
 - https://developer.doordash.com/en-US/docs/marketplace/how_to/create_webhook_subscription
 
-Read only fields that appear in the official documentation or sample payloads. Where the documentation is silent, record the decision in the README. Decisions and limitations are in the README Conflict log, Developer Notes and Limitations.
+Read only fields that appear in the official documentation or sample payloads. Where the documentation is silent, record the decision in the README. Decisions and limitations are in the README Conflict log and Developer Notes ("Not included").
 
 ## Code conventions
 
@@ -113,7 +113,7 @@ DoorDash Drive webhooks belong to a separate delivery product and are not handle
 
 ### Fixtures
 
-- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, so a diff against the fixture shows every change. The kinds of fix are described in the README section "Sample files" and under "Other conflicts found".
+- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, so a diff against the fixture shows every change. The kinds of fix are described in the README section "Sample files".
 - No fixture contains a `provider` field. Provider detection uses the payload shape only: Uber when `meta` contains `resource_id`, DoorDash when both `event` and `order` objects exist, otherwise 400.
 
 ## Demo-only code
