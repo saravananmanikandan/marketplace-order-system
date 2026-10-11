@@ -196,6 +196,13 @@ Note the number in the `PID` column, then stop that program (replace `12345` wit
 kill 12345
 ```
 
+If the port is still in use after `kill`, the program may be paused (for example by `Ctrl+Z`, which pauses a program instead of stopping it). A paused program keeps the port but ignores a normal `kill`. Wake it, then stop it:
+
+```bash
+kill -CONT 12345
+kill 12345
+```
+
 Start the API again with `python manage.py runserver`. Nothing else needs to change.
 
 **If you cannot free port 8000**, start the API on another port, for example `python manage.py runserver 8077`. Then:
