@@ -207,7 +207,7 @@ Start the API again with `python manage.py runserver`. Nothing else needs to cha
    ```
 
 2. Restart the Admin: press `Ctrl+C` in its terminal and run `npm run dev` again. Without this step the Admin keeps asking port 8000 and shows no orders.
-3. In the curl examples, change `8000` to `8077` in the URL.
+3. For the curl examples, run `export API_URL=http://localhost:8077` once in the terminal where you paste them. The commands themselves need no change.
 
 The scripts need no other change. Run them exactly as shown above, for example `scripts/seed_demo.sh`.
 
@@ -237,7 +237,16 @@ The simulator is a small demo tool inside the Admin. It sends mock Uber Eats and
 
 You can also use the simulator's **Copy curl command** button. It builds a correct command for you.
 
-All examples send to `http://localhost:8000/api/webhooks/orders`. If your API runs on another port, change the port in the URL (see [Note about ports](#note-about-ports)). Run the API first. The curl examples work from any folder. Each example is one command. Copy it as a whole.
+The examples send to `"${API_URL:-http://localhost:8000}/api/webhooks/orders"`. When `API_URL` is not set, this is `http://localhost:8000/api/webhooks/orders`, so on the default port you can paste the commands as they are. Run the API first. The curl examples work from any folder. Each example is one command. Copy it as a whole.
+
+> [!CAUTION]
+> If you started the API on another port, first run this once in the terminal where you paste the curl commands (use your port):
+>
+> ```bash
+> export API_URL=http://localhost:8077
+> ```
+>
+> Otherwise the commands go to port 8000 and fail with `Couldn't connect to server`. See [Note about ports](#note-about-ports).
 
 ### Uber Eats
 
@@ -246,7 +255,7 @@ Uber Eats sends only a short message with an order id. The API then fetches the 
 Uber also signs every message. The signature is the lowercase hex HMAC-SHA256 of the exact body, made with the client secret, and it goes in the `X-Uber-Signature` header. The command below already has the signature for this exact body and the demo secret `dev-uber-client-secret-0001` (the value of `UBER_CLIENT_SECRET` in `.env.example`), so you can paste it as it is.
 
 ```bash
-curl -i -X POST http://localhost:8000/api/webhooks/orders \
+curl -i -X POST "${API_URL:-http://localhost:8000}/api/webhooks/orders" \
   -H 'Content-Type: application/json' \
   -H 'X-Uber-Signature: 5b3c379c3794573526de7ebecbf84530ed7c2b2e4dd4f4fbff0334a9f1bf0331' \
   --data-binary '{
@@ -283,7 +292,7 @@ The body must reach the server byte for byte as it was signed. Use `--data-binar
 DoorDash sends the full order in the message, so no second call is needed. It does not sign the message. It sends the configured authentication token in the `Authorization` header (the value of `DOORDASH_WEBHOOK_AUTH_HEADER` in `.env.example` is already in the command). The order webhook pages name no header or scheme. The subscription page asks for an authentication token set in the portal (or "authorization headers/tokens" when configured through DoorDash), and the Drive webhook guide says Basic Auth sends the configured contents in the `Authorization` header. We compare the whole `Authorization` value with `DOORDASH_WEBHOOK_AUTH_HEADER`. OAuth is not implemented.
 
 ```bash
-curl -i -X POST http://localhost:8000/api/webhooks/orders \
+curl -i -X POST "${API_URL:-http://localhost:8000}/api/webhooks/orders" \
   -H 'Content-Type: application/json' \
   -H 'Authorization: Bearer dev-doordash-token-0001' \
   --data-binary '{
