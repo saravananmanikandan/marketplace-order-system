@@ -1197,7 +1197,7 @@ class FixtureOrderClientTests(SimpleTestCase):
 class ReadmeExampleTests(SimpleTestCase):
     def readme_bodies(self) -> list[dict]:
         readme = (settings.REPO_ROOT / "README.md").read_text()
-        bodies = re.findall(r"<<'EOF'\n(.*?)\nEOF\n", readme, re.DOTALL)
+        bodies = re.findall(r"--data-binary '(.*?)'\n```", readme, re.DOTALL)
         return [json.loads(body) for body in bodies]
 
     def test_each_readme_curl_body_equals_its_fixture(self):
@@ -1207,6 +1207,18 @@ class ReadmeExampleTests(SimpleTestCase):
 
     def test_readme_has_exactly_the_two_documented_bodies(self):
         self.assertEqual(len(self.readme_bodies()), 2)
+
+    def test_readme_curl_credentials_match_the_example_env_file(self):
+        readme = (settings.REPO_ROOT / "README.md").read_text()
+        example_env = (settings.REPO_ROOT / ".env.example").read_text()
+        uber_body = re.search(r"--data-binary '(.*?)'\n```", readme, re.DOTALL).group(1)
+        secret = re.search(r'^UBER_CLIENT_SECRET="(.*)"$', example_env, re.MULTILINE).group(1)
+        signature = hmac.new(secret.encode(), uber_body.encode(), hashlib.sha256).hexdigest()
+        self.assertIn(f"X-Uber-Signature: {signature}", readme)
+        doordash_header = re.search(
+            r'^DOORDASH_WEBHOOK_AUTH_HEADER="(.*)"$', example_env, re.MULTILINE
+        ).group(1)
+        self.assertIn(f"Authorization: {doordash_header}", readme)
 
 
 class OrderSortingTests(APITestCase):

@@ -165,8 +165,18 @@ Uber also signs every message. The signature is the lowercase hex HMAC-SHA256 of
 ```bash
 curl -i -X POST http://localhost:8000/api/webhooks/orders \
   -H 'Content-Type: application/json' \
-  -H 'X-Uber-Signature: 46494768329fedbf30b8eeae38d3082571e894625fc59724a59fc82e38c55279' \
-  --data-binary '{"event_type":"orders.notification","event_id":"9707aa33-c1bf-4bc8-ac4f-c05fcf61613c","event_time":1791704285,"meta":{"resource_id":"sim-uber-1","status":"pos","user_id":"89dd9741-66b5-4bb4-b216-000000000000"},"resource_href":"https://api.uber.com/v2/eats/order/sim-uber-1"}'
+  -H 'X-Uber-Signature: 5b3c379c3794573526de7ebecbf84530ed7c2b2e4dd4f4fbff0334a9f1bf0331' \
+  --data-binary '{
+  "event_type": "orders.notification",
+  "event_id": "c4d2261e-2779-4eb6-beb0-cb41235c751e",
+  "event_time": 1427343990,
+  "meta": {
+    "resource_id": "153dd7f1-339d-4619-940c-418943c14636",
+    "status": "pos",
+    "user_id": "89dd9741-66b5-4bb4-b216-a813f3b21b4f"
+  },
+  "resource_href": "https://api.uber.com/v2/eats/order/153dd7f1-339d-4619-940c-418943c14636"
+}'
 ```
 
 You should see `HTTP/1.1 200 OK` with an empty body (`Content-Length: 0`). The order then appears in the Admin. Send the same command again and the same order updates; no second order is made.
