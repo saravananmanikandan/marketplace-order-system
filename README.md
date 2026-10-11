@@ -236,7 +236,7 @@ The simulator is a small demo tool inside the Admin. It sends mock Uber Eats and
 8. Choose **Authentication**. **Valid signature or token** should work. **Invalid signature or token** is there to check that a bad request is rejected.
 9. Tick **Send twice at the same moment** to test two identical webhooks arriving together. Only one order should be saved.
 10. Click **Send**. The result shows below the form: the status code (for example `200`), and **What was sent**.
-11. Click **Copy curl command** to get the same webhook as a curl command, without sending it. Each copy gets a new order id, so running it adds a new order. Choose **Reuse last order id** if you want it to update the last order.
+11. Click **Copy curl command** to get the same webhook as a curl command, without sending it. Each copy gets a new order id, so running it adds a new order. Choose **Reuse last order id** if you want it to update the last order. Run DoorDash commands from the project folder, because they read the token from `.env`.
 
 ---
 
@@ -435,7 +435,7 @@ Both providers are mapped into one internal status. The order status comes from 
 
 The internal statuses, in order, are `new`, `accepted`, `preparing`, `ready` and `completed`, plus `cancelled`.
 
-- When the same order arrives again, its status only moves forward. A `cancelled` from a provider always applies, and nothing moves an order out of `cancelled`.
+- When the same order arrives again, its status only moves forward. A `cancelled` from a provider (Uber DENIED or CANCELED from Get Order) always applies, and nothing moves an order out of `cancelled`.
 - `preparing` and `ready` are set only by the status button in the Admin. They are never sent to Uber or DoorDash.
 - `next_status` is the next step in that order. It is `null` for `completed` and `cancelled`.
 
@@ -503,7 +503,7 @@ The line items add up to 900 but the total is 1399. That is how the official sam
 
 ## 6. Screenshots
 
-### Desktop (1280 px)
+### Desktop
 
 Order list with the status pills, search, provider filter and sort by time:
 
@@ -517,7 +517,7 @@ The webhook simulator:
 
 ![Webhook simulator](docs/screenshots/webhook-simulator.png)
 
-### Phone (390 px)
+### Phone
 
 | Order list | Order detail | Webhook simulator |
 | --- | --- | --- |
