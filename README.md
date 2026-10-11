@@ -180,19 +180,34 @@ The last line should be `OK`. The tests use their own temporary database, so the
 
 ### Note about ports
 
-Run the API on port 8000, as shown above. The curl examples in this README and the scripts use `http://localhost:8000/api/webhooks/orders`.
+Run the API on port 8000, as shown above. The curl examples, the scripts and the Admin all expect it there.
 
-If another program already uses port 8000, `runserver` prints `Error: That port is already in use.` Stop that program, or start the API on another port, for example `python manage.py runserver 8077`. If you use another port:
+If `runserver` prints `Error: That port is already in use.`, another program is using port 8000. Often it is an older copy of this API that you started earlier. A copy that is stuck accepts requests but never answers, so the scripts wait with an empty screen. Press `Ctrl+C` to stop them.
 
-- The scripts send to `http://localhost:8000/api/webhooks/orders` unless you set `WEBHOOK_URL`. Without it they send to whatever is listening on port 8000, and print `HTTP 200` if that is another copy of this app.
-- Change the port in the curl examples.
-- Set `API_PROXY_TARGET` in `.env` (for example `API_PROXY_TARGET="http://localhost:8077"`) and restart the Admin.
-
-Example with the scripts on port 8077:
+**Best fix: free port 8000.** Find the program that uses it:
 
 ```bash
-WEBHOOK_URL=http://localhost:8077/api/webhooks/orders scripts/seed_demo.sh
+lsof -i :8000
 ```
+
+Note the number in the `PID` column, then stop that program (replace `12345` with your number):
+
+```bash
+kill 12345
+```
+
+Start the API again with `python manage.py runserver`. Nothing else needs to change.
+
+**If you cannot free port 8000**, start the API on another port, for example `python manage.py runserver 8077`. Then change all three of these:
+
+1. **Admin:** set `API_PROXY_TARGET="http://localhost:8077"` in `.env`, then stop the Admin (`Ctrl+C`) and run `npm run dev` again. Without this step the Admin keeps asking port 8000 and shows no orders.
+2. **Scripts:** set `WEBHOOK_URL`, either in front of the command or as a line in `.env`:
+
+   ```bash
+   WEBHOOK_URL=http://localhost:8077/api/webhooks/orders scripts/seed_demo.sh
+   ```
+
+3. **Curl examples:** change `8000` to `8077` in the URL.
 
 ---
 
