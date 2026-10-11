@@ -8,7 +8,7 @@ Marketplace orders from Uber Eats and DoorDash arrive through one webhook endpoi
 - `admin/` React and Vite admin interface; `admin/src/demo/` is the demo-only UI
 - `fixtures/` official provider sample payloads, `fixtures/demo/` demo variants
 - `scripts/` helpers that send the sample webhooks to a running server
-- `docs/` documentation verification notes
+- `docs/` screenshots used in the README
 
 ## Commands
 
@@ -35,7 +35,7 @@ The official provider documentation is authoritative. When it disagrees with any
 - https://developer.doordash.com/en-US/docs/marketplace/reference/sample_order
 - https://developer.doordash.com/en-US/docs/marketplace/how_to/create_webhook_subscription
 
-Read only fields that appear in the official documentation or sample payloads. Where the documentation is silent, record the decision in the README "Developer Notes" section.
+Read only fields that appear in the official documentation or sample payloads. Where the documentation is silent, record the decision in the README. Decisions and limitations are in the README Conflict log, Developer Notes and Limitations.
 
 ## Code conventions
 
@@ -46,7 +46,7 @@ Read only fields that appear in the official documentation or sample payloads. W
 - Money is integer cents in the backend. Formatting as currency happens only in the frontend.
 - Frontend: function components and hooks, a single `api` module for all core requests (the demo has its own `demoApi.js`), plain CSS, no component library.
 - Dependencies stay minimal. Backend: Django, djangorestframework, python-dotenv. Frontend: react, react-dom, react-router-dom, @tanstack/react-query, vite.
-- Validate every value from a webhook at the boundary. Invalid input is a 400 (or 502 for a failed upstream call), never a 500 or a stored default. The exceptions are optional values: an Uber `placed_at` that is missing or has no offset falls back to the time the webhook was received, and a missing or non-text item `special_instructions` becomes an empty note.
+- Validate every value from a webhook at the boundary. Invalid input is a 400 (or 502 for a failed upstream call), never a 500 or a stored default. The exceptions are optional values: an Uber `placed_at` that is missing or has no offset falls back to the time the webhook was received, and a missing or non-text item `special_instructions` becomes an empty note. A missing or null customer object (DoorDash consumer, Uber eater) is accepted and stored with an empty name and phone. Uber lists eater as required, so this is looser than the docs.
 - Never edit official provider samples except to make them valid JSON. Keep the original text beside the corrected file.
 - Every documented provider behaviour the code relies on is cited in the README (conflict log or Developer Notes) with the page and section.
 
@@ -107,13 +107,13 @@ Webhook:
 
 Authentication: the order webhook carries the same authentication header as the menu status webhook. The Marketplace pages say only that the endpoint must be HTTPS and protected with an "authentication token" (an "Auth Token" field in the portal); they name no authentication types. Supporting evidence only: the Drive (classic) webhooks guide lists two types, "Basic Auth" (the exact contents of the HTTP `Authorization` header) and "OAuth" (client ID, client secret, token URL and optional scope).
 
-Implementation supports the static header mode. `DOORDASH_WEBHOOK_AUTH_HEADER` holds the full expected `Authorization` value, and the incoming header is compared to it with `hmac.compare_digest`. OAuth mode is not implemented and is recorded in the README conflict log.
+Implementation supports the static header mode. `DOORDASH_WEBHOOK_AUTH_HEADER` holds the full expected `Authorization` value, and the incoming header is compared to it with `hmac.compare_digest`. OAuth mode is not implemented and is recorded in the README (Curl examples, DoorDash section, and Developer Notes).
 
 DoorDash Drive webhooks belong to a separate delivery product and are not handled.
 
 ### Fixtures
 
-- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, so a diff against the fixture shows every change. The kinds of fix are described in the README conflict log.
+- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, so a diff against the fixture shows every change. The kinds of fix are described in the README section "Sample files" and under "Other conflicts found".
 - No fixture contains a `provider` field. Provider detection uses the payload shape only: Uber when `meta` contains `resource_id`, DoorDash when both `event` and `order` objects exist, otherwise 400.
 
 ## Demo-only code
