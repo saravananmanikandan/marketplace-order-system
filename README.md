@@ -72,7 +72,11 @@ npm run dev
 
 Open the address the terminal prints. It is usually `http://localhost:5173`. Vite forwards `/api` requests to `http://localhost:8000`. The Admin has no `.env` of its own. The proxy target comes from `API_PROXY_TARGET` in the root `.env`, and defaults to `http://localhost:8000`.
 
-For a production build, run `npm run build` in `admin`.
+For a production build, run this from the repository root:
+
+```bash
+cd admin && npm run build
+```
 
 ### Add the demo orders
 
@@ -84,7 +88,17 @@ scripts/seed_demo.sh
 
 It sends four orders: the official Uber Eats sample, the official DoorDash sample, one Uber Eats demo order and one DoorDash demo order. Each line prints `HTTP 200` when it works. Run it again and you still have four orders, because the same order updates in place.
 
-To send a single order, use `scripts/send_uber_webhook.sh [resource_id]` or `scripts/send_doordash_webhook.sh [order_id]`. An Uber id may use letters, digits, `-` and `_`.
+To send a single order, give the script an id. An Uber id may use letters, digits, `-` and `_`.
+
+```bash
+scripts/send_uber_webhook.sh my-uber-order-1
+```
+
+```bash
+scripts/send_doordash_webhook.sh my-doordash-order-1
+```
+
+Without an id, each script sends the official sample.
 
 ### Demo tools
 
@@ -104,9 +118,15 @@ Run the API on port 8000, as shown above. The curl examples in this README and t
 
 If you use another port:
 
-- The scripts send to `http://localhost:8000/api/webhooks/orders` unless you set `WEBHOOK_URL`, for example `WEBHOOK_URL=http://localhost:8077/api/webhooks/orders scripts/seed_demo.sh`. Without it they send to whatever is listening on port 8000, and print `HTTP 200` if that is another copy of this app.
+- The scripts send to `http://localhost:8000/api/webhooks/orders` unless you set `WEBHOOK_URL`. Without it they send to whatever is listening on port 8000, and print `HTTP 200` if that is another copy of this app.
 - Change the port in the curl examples.
 - Set `API_PROXY_TARGET` in `.env` and restart the Admin.
+
+Example with the scripts on port 8077:
+
+```bash
+WEBHOOK_URL=http://localhost:8077/api/webhooks/orders scripts/seed_demo.sh
+```
 
 ---
 
@@ -151,7 +171,17 @@ curl -i -X POST http://localhost:8000/api/webhooks/orders \
 
 You should see `HTTP/1.1 200 OK` with an empty body (`Content-Length: 0`). The order then appears in the Admin. Send the same command again and the same order updates; no second order is made.
 
-Any change to the body, or a different `UBER_CLIENT_SECRET`, makes this signature wrong and the API answers 401. To send a different order, use `scripts/send_uber_webhook.sh my-uber-order-1` or the simulator's **Copy curl command** button, which sign the body for you. To sign by hand, run `printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$UBER_CLIENT_SECRET"` on the exact body.
+Any change to the body, or a different `UBER_CLIENT_SECRET`, makes this signature wrong and the API answers 401. To send a different order, use the simulator's **Copy curl command** button or this script. Both sign the body for you.
+
+```bash
+scripts/send_uber_webhook.sh my-uber-order-1
+```
+
+To sign a body by hand, put the exact body in `BODY` and the secret in `UBER_CLIENT_SECRET`, then run:
+
+```bash
+printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$UBER_CLIENT_SECRET"
+```
 
 The body must reach the server byte for byte as it was signed. Use `--data-binary`, because `-d @file` removes newlines and breaks the signature.
 
@@ -353,12 +383,25 @@ Every documented provider behaviour the code relies on is cited with page and se
 
 ## 6. Screenshots
 
-| Screen | Image |
+### Desktop (1280 px)
+
+Order list with the status pills, search, provider filter and sort by time:
+
+![Order list on desktop](docs/screenshots/orders-list-desktop.png)
+
+Order detail with the total, items, customer, progress and the forward status button. The raw data is inside the closed **Debug data** section:
+
+![Order detail on desktop](docs/screenshots/order-detail-desktop.png)
+
+The webhook simulator:
+
+![Webhook simulator](docs/screenshots/webhook-simulator.png)
+
+### Phone (390 px)
+
+| Order list | Order detail |
 | --- | --- |
-| Order list (desktop) | _add screenshot_ |
-| Order list (phone) | _add screenshot_ |
-| Order detail | _add screenshot_ |
-| Webhook simulator | _add screenshot_ |
+| <img src="docs/screenshots/orders-list-mobile.jpg" alt="Order list on a phone" width="360"> | <img src="docs/screenshots/order-detail-mobile.jpg" alt="Order detail on a phone" width="360"> |
 
 ---
 
