@@ -138,7 +138,9 @@ Open a third terminal and paste your `cd` line. The API must be running in termi
 scripts/seed_demo.sh
 ```
 
-It sends four orders: the official Uber Eats sample, the official DoorDash sample, one Uber Eats demo order and one DoorDash demo order. Each line prints `HTTP 200` when it works. Run it again and you still have four orders, because the same order updates in place.
+It sends three demo orders: one Uber Eats order (Priya S.) and two DoorDash orders (Maya R. and Jonas K.). Each line prints `HTTP 200` when it works. Run it again and you still have three orders, because the same order updates in place.
+
+The script does not send the official samples. They are in the [curl examples](#3-curl-examples), so each curl adds a new order to the list (Larry for Uber Eats, Kelley W. for DoorDash). After the seed script and both curls, the list shows five orders.
 
 To send a single order, give the script an id. An Uber id may use letters, digits, `-` and `_`.
 
@@ -235,7 +237,7 @@ curl -i -X POST http://localhost:8000/api/webhooks/orders \
 }'
 ```
 
-You should see `HTTP/1.1 200 OK` with an empty body (`Content-Length: 0`). The order then appears in the Admin. Send the same command again and the same order updates; no second order is made.
+You should see `HTTP/1.1 200 OK` with an empty body (`Content-Length: 0`). A new order for Larry ($13.99) appears in the Admin within 5 seconds. Send the same command again and the same order updates; no second order is made.
 
 Any change to the body, or a different `UBER_CLIENT_SECRET`, makes this signature wrong and the API answers 401. To send a different order, use the simulator's **Copy curl command** button or this script. Both sign the body for you.
 
@@ -337,7 +339,7 @@ curl -i -X POST http://localhost:8000/api/webhooks/orders \
 }'
 ```
 
-You should see `HTTP/1.1 200 OK` and a JSON body with `merchant_supplied_id` (my internal order id) and `"order_status": "success"`. This is DoorDash's synchronous order confirmation. The order then appears in the Admin. To send another order, change `order.id`.
+You should see `HTTP/1.1 200 OK` and a JSON body with `merchant_supplied_id` (my internal order id) and `"order_status": "success"`. This is DoorDash's synchronous order confirmation. A new order for Kelley W. ($23.00) appears in the Admin within 5 seconds. To send another order, change `order.id`.
 
 ### If a request fails
 

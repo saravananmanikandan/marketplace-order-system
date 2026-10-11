@@ -128,7 +128,7 @@ The webhook simulator and the Uber Get Order mock exist only to ease the reviewe
 6. The demo app and its routes load only when `DEMO_ENABLED` is true. Settings refuse to start when `UBER_ORDER_CLIENT` points at the demo while it is off.
 7. The demo must not change any API response shape, and no demo logic belongs in `api/orders`.
 8. The simulator's Official preset sends single-line JSON with default spacing and the fixtures' parsed values, not the fixture bytes. Each simulator item has an optional Notes field, and Uber requests carry `X-Environment: sandbox`.
-9. `scripts/seed_demo.sh` sends four orders: the official Uber and DoorDash samples, one Uber demo order and one DoorDash demo order.
+9. `scripts/seed_demo.sh` sends three demo orders: one Uber demo order and two DoorDash demo orders. It never sends the official samples, because the README curl examples send them and must add new orders after seeding. Seed plus both curls gives five orders.
 
 ## Testing
 
