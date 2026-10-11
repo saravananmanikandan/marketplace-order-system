@@ -427,9 +427,9 @@ The webhook simulator:
 
 ### Phone (390 px)
 
-| Order list | Order detail |
-| --- | --- |
-| <img src="docs/screenshots/orders-list-mobile.jpg" alt="Order list on a phone" width="360"> | <img src="docs/screenshots/order-detail-mobile.jpg" alt="Order detail on a phone" width="360"> |
+| Order list | Order detail | Webhook simulator |
+| --- | --- | --- |
+| <img src="docs/screenshots/orders-list-mobile.png" alt="Order list on a phone" width="300"> | <img src="docs/screenshots/order-detail-mobile.png" alt="Order detail on a phone" width="300"> | <img src="docs/screenshots/webhook-simulator-mobile.png" alt="Webhook simulator on a phone" width="300"> |
 
 ---
 
