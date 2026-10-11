@@ -130,9 +130,12 @@ def doordash_headers(valid: bool) -> tuple[dict[str, str], dict[str, str]]:
 
 DOORDASH_TOKEN_VARIABLE = "DOORDASH_WEBHOOK_AUTH_HEADER"
 INVALID_DOORDASH_AUTHORIZATION = "Bearer not-the-configured-token"
+# Only the token line is read; running .env as shell code would also run
+# anything else pasted into it.
 LOAD_ENV_LINES = (
-    "# Run from the repository root; this loads the DoorDash token from .env.",
-    "set -a; source .env; set +a",
+    "# Run from the project folder; this reads only the DoorDash token from .env.",
+    f"{DOORDASH_TOKEN_VARIABLE}=\"$(grep '^{DOORDASH_TOKEN_VARIABLE}=' .env"
+    " | tail -n 1 | cut -d= -f2- | tr -d '\"')\"",
 )
 
 

@@ -2,7 +2,10 @@ import contextlib
 import importlib
 import json
 import shlex
+import subprocess
+import tempfile
 import threading
+from pathlib import Path
 import urllib.request
 from unittest import mock, skipUnless
 from urllib.parse import urlsplit
@@ -28,7 +31,7 @@ from orders.tests import (
 
 from . import builders, staging
 from .clients import DEMO_ORDERS_DIR, StagedOrderClient
-from .views import SimulatorSendView, uber_headers
+from .views import LOAD_ENV_LINES, SimulatorSendView, uber_headers
 
 DEMO_UBER_RESOURCE_ID = "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 STAGED_ORDER_CLIENT = "demo.clients.StagedOrderClient"
@@ -562,13 +565,27 @@ class SimulatorEndpointTests(SimulatorClientMixin, APITestCase):
 
     def test_doordash_curl_reads_the_token_from_env(self):
         curl = self.copy_curl(provider="doordash", preset="official").json()["curl"]
-        self.assertIn("set -a; source .env; set +a", curl)
+        self.assertTrue(curl.startswith("\n".join(LOAD_ENV_LINES)))
+        self.assertNotIn("source .env", curl)
         self.assertIn('-H "Authorization: $DOORDASH_WEBHOOK_AUTH_HEADER"', curl)
         self.assertNotIn(settings.DOORDASH_WEBHOOK_AUTH_HEADER, curl)
 
+    def test_doordash_curl_env_line_reads_the_token_without_running_env(self):
+        with tempfile.TemporaryDirectory() as folder:
+            marker = Path(folder) / "ran"
+            Path(folder, ".env").write_text(
+                f'DOORDASH_WEBHOOK_AUTH_HEADER="Bearer from-env-file-0001"\ntouch {marker}\n'
+            )
+            script = "\n".join([*LOAD_ENV_LINES, 'printf %s "$DOORDASH_WEBHOOK_AUTH_HEADER"'])
+            result = subprocess.run(
+                ["bash", "-c", script], cwd=folder, capture_output=True, text=True, check=True
+            )
+            self.assertEqual(result.stdout, "Bearer from-env-file-0001")
+            self.assertFalse(marker.exists())
+
     def test_doordash_curl_for_invalid_auth_uses_a_wrong_token(self):
         curl = self.copy_curl(provider="doordash", preset="official", auth="invalid").json()["curl"]
-        self.assertNotIn("source .env", curl)
+        self.assertNotIn(LOAD_ENV_LINES[1], curl)
         self.assertIn("Bearer not-the-configured-token", curl)
         self.assertNotIn(settings.DOORDASH_WEBHOOK_AUTH_HEADER[:-1], curl)
 

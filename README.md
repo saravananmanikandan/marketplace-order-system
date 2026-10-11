@@ -530,6 +530,6 @@ Watch the walkthrough on YouTube: [https://youtu.be/gOWeZgpwdNo](https://youtu.b
 - **Order model:** I added kitchen instructions, Uber's customer phone code, and a calculated next status because they seemed useful for the kitchen workflow. The assignment listed the required fields but did not say the internal model had to stay limited to them.
 - **Live updates:** The order list and the order detail poll every five seconds. I added this because having to refresh the page manually did not suit a kitchen dashboard.
 - **Demo code:** I kept the simulator and other demo code in separate files and folders so the main implementation is easier to review and test.
-- **Testing:** There are 203 backend tests. I also checked the Admin manually on desktop and mobile.
+- **Testing:** There are 204 backend tests. I also checked the Admin manually on desktop and mobile.
 - **Not included:** Live Uber API testing, authentication, DoorDash OAuth, outbound status updates, and automated frontend tests.
 - **If I took this further:** I'd move Uber order fetching to a background job, use PostgreSQL, add authentication and frontend tests, and move the Admin to TypeScript as it grows.
