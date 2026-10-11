@@ -664,7 +664,8 @@ class WebhookValidationTests(WebhookTestCase):
 
     def test_uber_malformed_placed_at_falls_back_to_received_time(self):
         before = timezone.now()
-        response = self.post_uber_with_order(lambda order: order.update(placed_at="yesterday"))
+        with self.assertLogs("orders.providers.uber", level="WARNING"):
+            response = self.post_uber_with_order(lambda order: order.update(placed_at="yesterday"))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(before <= Order.objects.get().created_at <= timezone.now())
 
