@@ -7,7 +7,7 @@ internal order model, and are managed in a small React admin.
 - `admin/` React and Vite admin
 - `fixtures/` sample provider payloads (`fixtures/demo/` has extra demo orders)
 - `scripts/` helpers that send the sample webhooks
-- `docs/` design decisions and documentation checks
+- `docs/` documentation checks
 
 ## Prerequisites
 
@@ -241,3 +241,12 @@ python manage.py test
 cd admin
 npm run build
 ```
+
+## Developer Notes
+
+Where the provider documentation is silent, the choice is recorded here.
+
+- DoorDash has no total field. `total_cents` is `subtotal + tax`, and both are read as cents because the sample values (2000 and 300) look like cents.
+- The DoorDash sample has no currency, so `DEFAULT_CURRENCY` is used.
+- DoorDash has no creation time (only a pickup estimate), so `created_at` is the time the webhook was received. Uber orders use `placed_at` when it has a timezone offset, and the received time otherwise.
+- A DoorDash item `price` is treated as a unit price, so the line total is `price * quantity`.

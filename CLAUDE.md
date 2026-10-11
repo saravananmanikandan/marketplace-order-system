@@ -8,7 +8,7 @@ Marketplace orders from Uber Eats and DoorDash arrive through one webhook endpoi
 - `admin/` React and Vite admin interface; `admin/src/demo/` is the demo-only UI
 - `fixtures/` official provider sample payloads, `fixtures/demo/` demo variants
 - `scripts/` helpers that send the sample webhooks to a running server
-- `docs/` design decisions and documentation verification notes
+- `docs/` documentation verification notes
 
 ## Commands
 
@@ -35,7 +35,7 @@ The official provider documentation is authoritative. When it disagrees with any
 - https://developer.doordash.com/en-US/docs/marketplace/reference/sample_order
 - https://developer.doordash.com/en-US/docs/marketplace/how_to/create_webhook_subscription
 
-Read only fields that appear in the official documentation or sample payloads. Where the documentation is silent, record the decision in `docs/decisions.md`.
+Read only fields that appear in the official documentation or sample payloads. Where the documentation is silent, record the decision in the README "Developer Notes" section.
 
 ## Code conventions
 
