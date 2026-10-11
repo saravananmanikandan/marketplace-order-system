@@ -372,12 +372,10 @@ Each row is a working note from the brief, written exactly as in the brief. The 
 
 ### Other conflicts found
 
-- **Official samples are not valid JSON.** The Uber webhook sample has a stray `...`, the Get Order sample has four trailing commas, and the DoorDash sample is missing a comma after `"tax": 300`. The fixtures fix only these. Every change is listed in `docs/verification-notes.md`.
+- **Official samples are not valid JSON.** The Uber webhook sample has a stray `...`, the Get Order sample has four trailing commas, and the DoorDash sample is missing a comma after `"tax": 300`. The fixtures fix only these. Compare a fixture with its original in `fixtures/as-published/` to see every change.
 - **Uber item prices do not match the totals.** The three items in the Get Order sample add up to 900, `sub_total` is 650 and `total` is 1399.
 - **DoorDash sample prices do not match the totals.** The item `price` is 0 while `subtotal` is 2000.
 - **DoorDash authentication.** The Marketplace pages ask for an authentication token and name no header or format. We support one static `Authorization` value. OAuth is not implemented.
-
-Every documented provider behaviour the code relies on is cited with page and section in `docs/verification-notes.md`.
 
 ---
 

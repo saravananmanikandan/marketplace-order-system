@@ -27,7 +27,7 @@ Configuration lives in `.env` at the repository root. `.env.example` lists every
 
 ## Sources of truth
 
-The official provider documentation is authoritative. When it disagrees with anything in this file or in a brief, the documentation wins and the difference is recorded in `docs/verification-notes.md`.
+The official provider documentation is authoritative. When it disagrees with anything in this file or in a brief, the documentation wins and the difference is recorded in the README conflict log.
 
 - https://developer.uber.com/docs/eats/references/api/webhooks.orders-notification
 - https://developer.uber.com/docs/eats/references/api/v2/get-eats-order-orderid
@@ -48,7 +48,7 @@ Read only fields that appear in the official documentation or sample payloads. W
 - Dependencies stay minimal. Backend: Django, djangorestframework, python-dotenv. Frontend: react, react-dom, react-router-dom, @tanstack/react-query, vite.
 - Validate every value from a webhook at the boundary. Invalid input is a 400 (or 502 for a failed upstream call), never a 500 or a stored default. The exceptions are optional values: an Uber `placed_at` that is missing or has no offset falls back to the time the webhook was received, and a missing or non-text item `special_instructions` becomes an empty note.
 - Never edit official provider samples except to make them valid JSON. Keep the original text beside the corrected file.
-- Every documented provider behaviour the code relies on is cited in docs/verification-notes.md with the page and section.
+- Every documented provider behaviour the code relies on is cited in the README (conflict log or Developer Notes) with the page and section.
 
 ## Architecture
 
@@ -90,7 +90,7 @@ The full order is then fetched with Get Order using `meta.resource_id`. In produ
 
 Money objects are `{amount, currency_code, formatted_amount}`. `amount` is documented as an integer in the smallest currency denomination, and currency comes from `currency_code` on the total. The sample's cart item prices do not add up to `payment.charges.sub_total`, so totals are never computed from items.
 
-The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. After the signature check, an event whose `event_type` is not `orders.notification` is acknowledged with an empty 200 and creates nothing. The webhook is rejected with 400 before any lookup when `meta.resource_id` does not match `^[A-Za-z0-9_-]+$` or is longer than 128 characters. `FixtureOrderClient` applies the same id check and returns a copy of the official Get Order fixture with `id` set to the `resource_id`, `display_id` set to its last 5 characters and the sample's 2019 `placed_at` removed, so the copy is stamped with the received time. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in `docs/verification-notes.md`. A payload without `meta.resource_id` matches no provider and is a 400.
+The official webhook example and Get Order example use different UUIDs even though the documentation says `meta.resource_id` is the order id. The official fixtures are not edited to hide this. After the signature check, an event whose `event_type` is not `orders.notification` is acknowledged with an empty 200 and creates nothing. The webhook is rejected with 400 before any lookup when `meta.resource_id` does not match `^[A-Za-z0-9_-]+$` or is longer than 128 characters. `FixtureOrderClient` applies the same id check and returns a copy of the official Get Order fixture with `id` set to the `resource_id`, `display_id` set to its last 5 characters and the sample's 2019 `placed_at` removed, so the copy is stamped with the received time. `external_order_id` is the `id` of the fetched order, and the mismatch is recorded in the README conflict log. A payload without `meta.resource_id` matches no provider and is a 400.
 
 When sending the Uber fixture with curl, use `--data-binary @file`. Plain `-d @file` strips newlines, changes the body and breaks the signature.
 
@@ -105,13 +105,13 @@ Webhook:
 
 Authentication: the order webhook carries the same authentication header as the menu status webhook. The Marketplace pages say only that the endpoint must be HTTPS and protected with an "authentication token" (an "Auth Token" field in the portal); they name no authentication types. Supporting evidence only: the Drive (classic) webhooks guide lists two types, "Basic Auth" (the exact contents of the HTTP `Authorization` header) and "OAuth" (client ID, client secret, token URL and optional scope).
 
-Implementation supports the static header mode. `DOORDASH_WEBHOOK_AUTH_HEADER` holds the full expected `Authorization` value, and the incoming header is compared to it with `hmac.compare_digest`. OAuth mode is not implemented and is recorded in `docs/verification-notes.md`.
+Implementation supports the static header mode. `DOORDASH_WEBHOOK_AUTH_HEADER` holds the full expected `Authorization` value, and the incoming header is compared to it with `hmac.compare_digest`. OAuth mode is not implemented and is recorded in the README conflict log.
 
 DoorDash Drive webhooks belong to a separate delivery product and are not handled.
 
 ### Fixtures
 
-- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, and every change is listed in `docs/verification-notes.md`.
+- Official samples contain invalid JSON in places (trailing commas, stray `...`, missing commas). Fixtures are cleaned to valid JSON and otherwise unchanged. The published text is kept in `fixtures/as-published/`, so a diff against the fixture shows every change. The kinds of fix are described in the README conflict log.
 - No fixture contains a `provider` field. Provider detection uses the payload shape only: Uber when `meta` contains `resource_id`, DoorDash when both `event` and `order` objects exist, otherwise 400.
 
 ## Demo-only code
