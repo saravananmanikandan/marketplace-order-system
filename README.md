@@ -14,7 +14,7 @@ Orders from both providers arrive at one webhook URL. The API works out which pr
 4. [Mapping table](#4-mapping-table)
 5. [Conflict log](#5-conflict-log)
 6. [Screenshots](#6-screenshots)
-7. [Screen recording](#7-screen-recording)
+7. [Video walkthrough](#7-video-walkthrough)
 8. [Developer Notes](#developer-notes)
 
 ---
@@ -525,9 +525,9 @@ The webhook simulator:
 
 ---
 
-## 7. Screen recording
+## 7. Video walkthrough
 
-Watch the walkthrough on YouTube: [https://youtu.be/gOWeZgpwdNo](https://youtu.be/gOWeZgpwdNo)
+[Video walkthrough](https://youtu.be/zKFtiCEEYLE) on YouTube.
 
 ---
 
