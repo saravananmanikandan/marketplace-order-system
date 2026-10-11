@@ -200,7 +200,7 @@ To send another order, change `order.id`. Or use the script: `scripts/send_doord
 
 ### More orders
 
-Load the demo set (5 orders in total) in one go:
+Load the demo set (4 orders in total) in one go:
 
 ```
 scripts/seed_demo.sh
