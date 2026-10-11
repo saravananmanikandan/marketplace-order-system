@@ -55,7 +55,15 @@ The `marketplace-order-system` folder is the **project folder**. Every command i
 
 The last command prints the exact command that goes back to this folder on your computer. It looks like `cd "/home/alex/projects/marketplace-order-system"`, with your own path. Copy that printed line and keep it.
 
-You use three terminals: one for the API, one for the Admin, and one for the demo orders and the tests. A new terminal usually starts in your home folder, not in the project folder. So in every new terminal, first paste the `cd` line you copied.
+You use three terminals: one for the API, one for the Admin, and one for the demo orders and the tests. A new terminal usually starts in your home folder, not in the project folder. So in every new terminal, first paste the `cd` line you copied. It uses the full path, so it works from any folder.
+
+To check that you are in the project folder, run:
+
+```bash
+test -f api/manage.py && echo "OK: this is the project folder." || echo "Not the project folder. Paste your cd line first."
+```
+
+If you lost the `cd` line, go to the folder where you ran `git clone`, run `cd marketplace-order-system`, and run the `echo` command above again.
 
 ### Terminal 1: API (Django)
 
@@ -486,7 +494,7 @@ The webhook simulator:
 
 ## 7. Screen recording
 
-_add recording_
+Watch the walkthrough on YouTube: [https://youtu.be/gOWeZgpwdNo](https://youtu.be/gOWeZgpwdNo)
 
 ---
 
