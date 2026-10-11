@@ -39,21 +39,23 @@ npm --version
 
 If `python3 --version` shows a version older than 3.12, install Python 3.12 first. Installing the packages fails on older versions.
 
+The commands are for macOS and Linux (zsh or bash). On Windows, run them inside WSL (Windows Subsystem for Linux).
+
 ### Get the code
+
+Open a terminal in the folder where you want the project, then run:
 
 ```bash
 git clone https://github.com/saravananmanikandan/marketplace-order-system.git
 cd marketplace-order-system
-pwd
+echo "cd \"$(pwd)\""
 ```
 
-The `marketplace-order-system` folder is the **project folder**. Every command in this README starts there. `pwd` prints its full path. Keep that path, because you need it in the other terminals.
+The `marketplace-order-system` folder is the **project folder**. Every command in this README starts there.
 
-You use three terminals: one for the API, one for the Admin, and one for the demo orders and the tests. A new terminal starts in your home folder, not in the project folder. So in every new terminal, first go to the project folder with `cd` and the path that `pwd` printed. For example:
+The last command prints the exact command that goes back to this folder on your computer. It looks like `cd "/home/alex/projects/marketplace-order-system"`, with your own path. Copy that printed line and keep it.
 
-```bash
-cd ~/Dev/marketplace-order-system
-```
+You use three terminals: one for the API, one for the Admin, and one for the demo orders and the tests. A new terminal usually starts in your home folder, not in the project folder. So in every new terminal, first paste the `cd` line you copied.
 
 ### Terminal 1: API (Django)
 
@@ -64,6 +66,8 @@ Run these steps in the project folder.
    ```bash
    python3 -m venv .venv
    ```
+
+   On Debian or Ubuntu, if this says `ensurepip is not available`, install the `python3-venv` package for your Python version (for example `sudo apt install python3.12-venv`) and run it again.
 
 2. Turn it on. Your prompt then starts with `(.venv)`.
 
@@ -95,7 +99,7 @@ Leave this terminal open. The API runs until you press `Ctrl+C`. If it prints `E
 
 `.env` must be in the project folder, next to `.env.example`. It is never committed. You do not need to change anything in it: the example file has working demo values, including the secrets used by the curl examples below. The API refuses to start if a required variable is missing or empty.
 
-To start the API again later, open a terminal, go to the project folder, and run:
+To start the API again later, open a terminal, paste your `cd` line, and run:
 
 ```bash
 source .venv/bin/activate
@@ -105,7 +109,7 @@ python manage.py runserver
 
 ### Terminal 2: Admin (React + Vite)
 
-Open a second terminal and go to the project folder. Then run:
+Open a second terminal and paste your `cd` line. Then run:
 
 ```bash
 cd admin
@@ -117,9 +121,9 @@ npm run dev
 
 Open the address the terminal prints. It is usually `http://localhost:5173`. Vite forwards `/api` requests to `http://localhost:8000`. The Admin has no `.env` of its own. The proxy target comes from `API_PROXY_TARGET` in the project folder's `.env`, and defaults to `http://localhost:8000`.
 
-To start the Admin again later, go to the project folder and run `cd admin` and then `npm run dev`.
+To start the Admin again later, paste your `cd` line, then run `cd admin` and `npm run dev`.
 
-For a production build, go to the project folder and run:
+For a production build, paste your `cd` line and run:
 
 ```bash
 cd admin
@@ -128,7 +132,7 @@ npm run build
 
 ### Terminal 3: add the demo orders
 
-Open a third terminal and go to the project folder. The API must be running in terminal 1. Then run:
+Open a third terminal and paste your `cd` line. The API must be running in terminal 1. Then run:
 
 ```bash
 scripts/seed_demo.sh
@@ -154,7 +158,7 @@ Without an id, each script sends the official sample.
 
 ### Run the tests
 
-In terminal 3, go to the project folder and run:
+In terminal 3, make sure you are in the project folder (paste your `cd` line if you are not sure), then run:
 
 ```bash
 source .venv/bin/activate
